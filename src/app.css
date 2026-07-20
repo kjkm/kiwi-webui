@@ -490,9 +490,11 @@ aside {
     color: #ececf1;
     background: #212121;
   }
-  .conversation,
-  .composer-wrap {
+  .conversation {
     background-color: #212121;
+  }
+  .composer-wrap {
+    background: linear-gradient(transparent, #212121 26%);
   }
   .conversation-header {
     border-color: #333;
