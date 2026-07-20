@@ -309,9 +309,21 @@ test('OIDC login, persistent streamed chat, CSRF protection, and logout', async 
     .not.toBe(true);
   await expect(page.locator('.message.assistant script')).toHaveCount(0);
 
+  const conversationUrl = page.url();
+  await composer.fill('Follow up');
+  await composer.press('Enter');
+  await expect(page.getByText('Follow up')).toBeVisible();
+  await expect(page.locator('.message.assistant').filter({ hasText: 'Hello world.' })).toHaveCount(
+    2
+  );
+  expect(page.url()).toBe(conversationUrl);
+
   await page.reload();
   await expect(page.getByText('Say hello')).toBeVisible();
-  await expect(page.getByText('Hello world.')).toBeVisible();
+  await expect(page.getByText('Follow up')).toBeVisible();
+  await expect(page.locator('.message.assistant').filter({ hasText: 'Hello world.' })).toHaveCount(
+    2
+  );
 
   await page.getByRole('link', { name: 'New chat', exact: true }).hover();
   await page.getByRole('button', { name: 'More options for New chat' }).click();
@@ -355,7 +367,9 @@ test('OIDC login, persistent streamed chat, CSRF protection, and logout', async 
   await page.getByRole('link', { name: 'Continue with SSO' }).click();
   await expect(page.getByRole('link', { name: 'Renamed chat' })).toBeVisible();
   await page.getByRole('link', { name: 'Renamed chat' }).click();
-  await expect(page.getByText('Hello world.')).toBeVisible();
+  await expect(page.locator('.message.assistant').filter({ hasText: 'Hello world.' })).toHaveCount(
+    2
+  );
 
   const csrf = await page.request.post('/api/generate', {
     headers: { origin: 'http://evil.example' },
