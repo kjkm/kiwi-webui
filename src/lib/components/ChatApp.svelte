@@ -4,6 +4,7 @@
   import { onMount, untrack } from 'svelte';
   import Markdown from './Markdown.svelte';
   import ModelSelector from './ModelSelector.svelte';
+  import ArrowUp from './icons/ArrowUp.svelte';
   import ChevronUpDown from './icons/ChevronUpDown.svelte';
   import EllipsisHorizontal from './icons/EllipsisHorizontal.svelte';
   import GarbageBin from './icons/GarbageBin.svelte';
@@ -296,9 +297,14 @@
     {#if busy}
       <button class="send-button stop" aria-label="Stop generation" onclick={stop}>■</button>
     {:else}
-      <button class="send-button" aria-label="Send message" onclick={send} disabled={!prompt.trim()}
-        >↑</button
+      <button
+        class="send-button"
+        aria-label="Send message"
+        onclick={send}
+        disabled={!prompt.trim()}
       >
+        <ArrowUp />
+      </button>
     {/if}
   </div>
   <p class="disclaimer">AI can make mistakes. Check important information.</p>
