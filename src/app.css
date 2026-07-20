@@ -789,9 +789,9 @@ aside.desktop-hidden {
   background: transparent;
 }
 .send-button {
-  width: 38px;
-  height: 38px;
-  flex: 0 0 38px;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
   display: inline-flex;
   align-items: center;
   justify-content: center;

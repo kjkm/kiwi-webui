@@ -184,6 +184,8 @@ test('OIDC login, persistent streamed chat, CSRF protection, and logout', async 
   await expect(centeredComposer).toBeVisible();
   const composerBox = await centeredComposer.boundingBox();
   expect(composerBox?.y).toBeLessThan(550);
+  const sendButtonBox = await page.getByRole('button', { name: 'Send message' }).boundingBox();
+  expect(sendButtonBox).toMatchObject({ width: 32, height: 32 });
 
   await page.getByRole('button', { name: 'E2E Model' }).click();
   await page.getByRole('option', { name: /Alternate Model/ }).click();
