@@ -1,0 +1,15 @@
+node_modules
+.svelte-kit
+build
+data
+.env
+.git
+.github
+openspec
+.pi
+.windsurf
+test-results
+playwright-report
+*.db
+*.db-shm
+*.db-wal

@@ -1,0 +1,15 @@
+services:
+  kiwi-webui:
+    build: .
+    restart: unless-stopped
+    ports:
+      - '3000:3000'
+    env_file: .env
+    environment:
+      PORT: '3000'
+      DATABASE_PATH: /app/data/kiwi-webui.db
+    volumes:
+      - kiwi-data:/app/data
+
+volumes:
+  kiwi-data:

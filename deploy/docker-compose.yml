@@ -1,0 +1,49 @@
+# Watchtower-managed homelab deployment.
+#
+# Copy this file and .env.example to the server, rename .env.example to .env,
+# replace OWNER with the lowercase GitHub owner, configure the secrets, then:
+#   docker compose up -d
+#
+# Watchtower follows :latest. Pin a commit-SHA tag to hold or roll back.
+# For a private GHCR package, first run `docker login ghcr.io` with a token
+# carrying read:packages.
+
+services:
+  kiwi-webui:
+    image: ghcr.io/OWNER/kiwi-webui:latest
+    restart: unless-stopped
+    ports:
+      - '3000:3000'
+    env_file: .env
+    environment:
+      PORT: '3000'
+      DATABASE_PATH: /app/data/kiwi-webui.db
+    volumes:
+      - kiwi-webui-data:/app/data
+    labels:
+      - com.centurylinklabs.watchtower.enable=true
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:3000/api/health/ready').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  watchtower:
+    image: containrrr/watchtower
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      WATCHTOWER_CLEANUP: 'true'
+      WATCHTOWER_LABEL_ENABLE: 'true'
+      WATCHTOWER_POLL_INTERVAL: '300'
+
+volumes:
+  kiwi-webui-data:
