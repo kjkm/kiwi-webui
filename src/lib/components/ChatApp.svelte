@@ -593,7 +593,11 @@
             </div>
           {/if}
           <div class="new-chat-heading">
-            <img class="brand-mark" src="/kiwi.svg" alt="" aria-hidden="true" />
+            {#if temporaryMode}
+              <span class="brand-mark temporary-brand-mark" aria-hidden="true"></span>
+            {:else}
+              <img class="brand-mark" src="/kiwi.svg" alt="" aria-hidden="true" />
+            {/if}
             <h2>Hi, I'm Kiwi!</h2>
           </div>
           <div class="new-chat-composer">{@render composer()}</div>

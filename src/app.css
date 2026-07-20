@@ -737,6 +737,12 @@ aside.desktop-hidden {
   height: 40px;
   box-shadow: none;
 }
+.temporary-brand-mark {
+  color: var(--ow-gray-500);
+  background: currentColor;
+  -webkit-mask: url('/kiwi-wireframe.svg') center / contain no-repeat;
+  mask: url('/kiwi-wireframe.svg') center / contain no-repeat;
+}
 .new-chat-heading h2 {
   margin: 0;
   font-size: 1.875rem;
@@ -1101,6 +1107,9 @@ aside.desktop-hidden {
   .new-chat-heading,
   .storage-state h2 {
     color: var(--ow-gray-100);
+  }
+  .temporary-brand-mark {
+    color: var(--ow-gray-400);
   }
   .message.user-message {
     background: var(--ow-gray-850);
