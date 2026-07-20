@@ -615,13 +615,14 @@ aside.desktop-hidden {
   margin: auto;
   padding: 96px 10px;
   text-align: center;
-  transform: translateY(24px);
+  transform: translateY(-10vh);
 }
 .new-chat-heading {
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 12px;
+  gap: 14px;
   color: var(--ow-gray-800);
 }
 .new-chat-heading .brand-mark {
