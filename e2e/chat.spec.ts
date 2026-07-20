@@ -10,6 +10,7 @@ const clientId = 'kiwi-e2e';
 const { publicKey, privateKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
 const codes = new Map<string, string>();
 let counter = 0;
+let completionModel = '';
 let idp: Server;
 let llm: Server;
 
@@ -115,13 +116,26 @@ test.beforeAll(async () => {
     })();
   });
 
-  llm = createServer((_request, response) => {
-    response.writeHead(200, { 'content-type': 'text/event-stream' });
-    response.write('data: {"choices":[{"delta":{"content":"Hello **world**. "}}]}\n\n');
-    response.write(
-      'data: {"choices":[{"delta":{"content":"<script>window.pwned=true</script>"}}]}\n\n'
-    );
-    response.end('data: [DONE]\n\n');
+  llm = createServer((request, response) => {
+    void (async () => {
+      const url = new URL(request.url ?? '/', `http://127.0.0.1:${LLM_PORT}`);
+      if (request.method === 'GET' && url.pathname === '/v1/models') {
+        return json(response, 200, {
+          data: [
+            { id: 'e2e-model', name: 'E2E Model', owned_by: 'test' },
+            { id: 'alternate-model', name: 'Alternate Model', owned_by: 'test' }
+          ]
+        });
+      }
+      const payload = JSON.parse(await readBody(request)) as { model?: string };
+      completionModel = payload.model ?? '';
+      response.writeHead(200, { 'content-type': 'text/event-stream' });
+      response.write('data: {"choices":[{"delta":{"content":"Hello **world**. "}}]}\n\n');
+      response.write(
+        'data: {"choices":[{"delta":{"content":"<script>window.pwned=true</script>"}}]}\n\n'
+      );
+      response.end('data: [DONE]\n\n');
+    })();
   });
 
   await Promise.all([listen(idp, IDP_PORT), listen(llm, LLM_PORT)]);
@@ -139,10 +153,14 @@ test('OIDC login, persistent streamed chat, CSRF protection, and logout', async 
 
   await page.getByRole('button', { name: /New chat/ }).click();
   await expect(page).toHaveURL(/\/c\//);
+  await page.getByRole('button', { name: 'E2E Model' }).click();
+  await page.getByRole('option', { name: /Alternate Model/ }).click();
+
   const composer = page.getByRole('textbox', { name: 'Message' });
   await composer.fill('Say hello');
   await composer.press('Enter');
   await expect(page.getByText('Hello world.')).toBeVisible();
+  await expect.poll(() => completionModel).toBe('alternate-model');
   await expect
     .poll(() => page.evaluate(() => (window as Window & { pwned?: boolean }).pwned))
     .not.toBe(true);
