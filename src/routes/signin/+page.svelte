@@ -8,7 +8,7 @@
 
 <main class="signin-page">
   <section class="signin-card" aria-labelledby="signin-title">
-    <div class="brand-mark" aria-hidden="true">K</div>
+    <img class="brand-mark" src="/kiwi.svg" alt="" aria-hidden="true" />
     <p class="eyebrow">{data.appName}</p>
     <h1 id="signin-title">Welcome back</h1>
     <p class="muted">Sign in with your organization account to continue.</p>

@@ -149,7 +149,10 @@
 <div class="app-shell">
   <aside class:open={mobileNav} aria-label="Chat navigation">
     <div class="sidebar-heading">
-      <a class="brand" href={resolve('/')}>{appName}</a>
+      <a class="brand" href={resolve('/')}>
+        <img class="brand-logo" src="/kiwi.svg" alt="" aria-hidden="true" />
+        <span>{appName}</span>
+      </a>
       <button
         class="icon-button mobile-only"
         aria-label="Close navigation"
@@ -196,13 +199,13 @@
     <section class="messages" aria-live="polite">
       {#if !initialChat}
         <div class="empty-state">
-          <div class="brand-mark">K</div>
+          <img class="brand-mark" src="/kiwi.svg" alt="" aria-hidden="true" />
           <h2>What can I help with?</h2>
           <button class="primary-button" onclick={createChat}>Start a conversation</button>
         </div>
       {:else if messages.length === 0 && !busy}
         <div class="empty-state">
-          <div class="brand-mark">K</div>
+          <img class="brand-mark" src="/kiwi.svg" alt="" aria-hidden="true" />
           <h2>What can I help with?</h2>
           <p>Send a message to begin.</p>
         </div>
