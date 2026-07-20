@@ -224,7 +224,7 @@
       onkeydown={composerKeydown}
       rows="1"
       maxlength="32000"
-      placeholder="Message {appName}"
+      placeholder="What can I help with"
       disabled={busy}
     ></textarea>
     {#if busy}
@@ -362,7 +362,7 @@
         <div class="new-chat-content">
           <div class="new-chat-heading">
             <img class="brand-mark" src="/kiwi.svg" alt="" aria-hidden="true" />
-            <h2>What can I help with?</h2>
+            <h2>Hi, I'm Kiwi!</h2>
           </div>
           <div class="new-chat-composer">{@render composer()}</div>
           {#if failure}<div class="notice error" role="alert">{failure}</div>{/if}
@@ -376,7 +376,7 @@
             class:user-message={message.role === 'user'}
             class="message"
           >
-            <div class="message-label">{message.role === 'assistant' ? appName : 'You'}</div>
+            <div class="message-label">{message.role === 'assistant' ? 'Kiwi' : 'You'}</div>
             {#if message.role === 'assistant'}<Markdown content={message.content} />{:else}<p>
                 {message.content}
               </p>{/if}
@@ -384,12 +384,12 @@
         {/each}
         {#if streaming}
           <article class="message assistant streaming">
-            <div class="message-label">{appName}</div>
+            <div class="message-label">Kiwi</div>
             <Markdown content={streaming} /><span class="cursor">▋</span>
           </article>
         {:else if busy}
           <article class="message assistant thinking">
-            <div class="message-label">{appName}</div>
+            <div class="message-label">Kiwi</div>
             <span></span><span></span><span></span>
           </article>
         {/if}
