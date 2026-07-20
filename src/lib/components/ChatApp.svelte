@@ -152,11 +152,19 @@
   async function createChat(): Promise<void> {
     if (temporaryMode) {
       discardTemporaryChat();
-      await goto(resolve('/'));
-      return;
+    } else {
+      controller?.abort();
+      controller = null;
+      activeChatId = null;
+      loadedRequestedId = null;
+      messages = [];
+      streaming = '';
+      prompt = '';
+      failure = '';
+      missingChat = false;
+      busy = false;
     }
-    const chat = await createChatRecord();
-    if (chat) await goto(resolve(`/c/${chat.id}`));
+    await goto(resolve('/'));
   }
 
   function toggleTemporaryChat(): void {
