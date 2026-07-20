@@ -93,6 +93,55 @@ export class LocalChatRepository {
     return summary(record);
   }
 
+  async createWithMessages(
+    userId: string,
+    title: string,
+    transcript: ReadonlyArray<Pick<Message, 'role' | 'content' | 'createdAt'>>
+  ): Promise<ChatSummary> {
+    if (!validTitle(title)) throw new Error('Invalid chat title');
+    if (
+      transcript.length === 0 ||
+      transcript.some(
+        (item) =>
+          (item.role !== 'user' && item.role !== 'assistant') ||
+          !validMessage(item.content) ||
+          !Number.isSafeInteger(item.createdAt) ||
+          item.createdAt < 0
+      )
+    ) {
+      throw new Error('Invalid chat transcript');
+    }
+
+    const database = await this.database;
+    const transaction = database.transaction(['chats', 'messages'], 'readwrite');
+    const id = crypto.randomUUID();
+    const now = Date.now();
+    const chat: LocalChatRecord = {
+      key: chatKey(userId, id),
+      id,
+      userId,
+      title: title.trim(),
+      createdAt: now,
+      updatedAt: now
+    };
+    await transaction.objectStore('chats').add(chat);
+    for (const [position, item] of transcript.entries()) {
+      const id = crypto.randomUUID();
+      await transaction.objectStore('messages').add({
+        key: messageKey(userId, id),
+        id,
+        userId,
+        chatId: chat.id,
+        position,
+        role: item.role,
+        content: item.content,
+        createdAt: item.createdAt
+      });
+    }
+    await transaction.done;
+    return summary(chat);
+  }
+
   async list(userId: string): Promise<ChatSummary[]> {
     const records = await (
       await this.database

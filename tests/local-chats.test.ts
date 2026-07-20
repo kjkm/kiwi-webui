@@ -45,6 +45,33 @@ describe('local chat repository', () => {
     ]);
   });
 
+  it('atomically converts an ordered transcript into a local chat', async () => {
+    const saved = await repository.createWithMessages('alice', 'Temporary chat', [
+      { role: 'user', content: 'one', createdAt: 10 },
+      { role: 'assistant', content: 'two', createdAt: 20 }
+    ]);
+
+    expect(await repository.get('alice', saved.id)).toMatchObject({
+      title: 'Temporary chat',
+      messages: [
+        { role: 'user', content: 'one', position: 0, createdAt: 10 },
+        { role: 'assistant', content: 'two', position: 1, createdAt: 20 }
+      ]
+    });
+  });
+
+  it('rejects an invalid conversion without leaving a partial chat', async () => {
+    await expect(
+      repository.createWithMessages('alice', 'Temporary chat', [
+        { role: 'user', content: 'valid', createdAt: 10 },
+        { role: 'assistant', content: '   ', createdAt: 20 }
+      ])
+    ).rejects.toThrow('Invalid chat transcript');
+
+    expect(await repository.list('alice')).toEqual([]);
+    expect(await database.count('messages')).toBe(0);
+  });
+
   it('renames owned chats and cascades message deletion', async () => {
     const chat = await repository.create('alice');
     await repository.append('alice', chat.id, 'user', 'hello');
