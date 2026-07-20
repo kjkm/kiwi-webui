@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { goto } from '$app/navigation';
+  import { goto, replaceState } from '$app/navigation';
   import { resolve } from '$app/paths';
   import { onMount, untrack } from 'svelte';
   import Markdown from './Markdown.svelte';
@@ -30,12 +30,14 @@
 
   let chats = $state<ChatSummary[]>([]);
   let messages = $state<Message[]>([]);
+  let activeChatId = $state<string | null>(null);
   let loadedChatId = $state<string | null | undefined>(undefined);
   $effect(() => {
     chats = [...initialChats];
     const nextId = initialChat?.id ?? null;
     if (nextId !== loadedChatId) {
       messages = initialChat ? [...initialChat.messages] : [];
+      activeChatId = nextId;
       loadedChatId = nextId;
     }
   });
@@ -75,16 +77,21 @@
     localStorage.setItem('kiwi_sidebar', sidebarOpen ? 'open' : 'closed');
   }
 
-  async function createChat(): Promise<void> {
+  async function createChatRecord(): Promise<ChatSummary | null> {
     const response = await fetch('/api/chats', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({})
-    });
-    if (!response.ok) return;
+    }).catch(() => null);
+    if (!response?.ok) return null;
     const { chat } = (await response.json()) as { chat: ChatSummary };
     chats = [chat, ...chats];
-    await goto(resolve(`/c/${chat.id}`));
+    return chat;
+  }
+
+  async function createChat(): Promise<void> {
+    const chat = await createChatRecord();
+    if (chat) await goto(resolve(`/c/${chat.id}`));
   }
 
   async function renameChat(chat: ChatSummary): Promise<void> {
@@ -105,7 +112,7 @@
     const response = await fetch(`/api/chats/${chat.id}`, { method: 'DELETE' });
     if (!response.ok) return;
     chats = chats.filter((item) => item.id !== chat.id);
-    if (initialChat?.id === chat.id) await goto(resolve('/'));
+    if (activeChatId === chat.id) await goto(resolve('/'));
   }
 
   function consumeEvent(raw: string): void {
@@ -130,14 +137,29 @@
 
   async function send(): Promise<void> {
     const content = prompt.trim();
-    if (!initialChat || !content || busy) return;
+    if (!content || busy) return;
+
+    let chatId = activeChatId;
+    if (!chatId) {
+      busy = true;
+      const chat = await createChatRecord();
+      if (!chat) {
+        busy = false;
+        failure = 'Unable to create a conversation.';
+        return;
+      }
+      chatId = chat.id;
+      activeChatId = chat.id;
+      replaceState(resolve(`/c/${chat.id}`), {});
+    }
+
     prompt = '';
     failure = '';
     streaming = '';
     busy = true;
     const optimistic: Message = {
       id: `pending-${Date.now()}`,
-      chatId: initialChat.id,
+      chatId,
       position: messages.length,
       role: 'user',
       content,
@@ -147,7 +169,7 @@
     controller = new AbortController();
 
     try {
-      const response = await fetch(`/api/chats/${initialChat.id}/generate`, {
+      const response = await fetch(`/api/chats/${chatId}/generate`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ content, model: selectedModel }),
@@ -192,6 +214,29 @@
     }
   }
 </script>
+
+{#snippet composer()}
+  <div class="composer">
+    <label class="sr-only" for="prompt">Message</label>
+    <textarea
+      id="prompt"
+      bind:value={prompt}
+      onkeydown={composerKeydown}
+      rows="1"
+      maxlength="32000"
+      placeholder="Message {appName}"
+      disabled={busy}
+    ></textarea>
+    {#if busy}
+      <button class="send-button stop" aria-label="Stop generation" onclick={stop}>■</button>
+    {:else}
+      <button class="send-button" aria-label="Send message" onclick={send} disabled={!prompt.trim()}
+        >↑</button
+      >
+    {/if}
+  </div>
+  <p class="disclaimer">AI can make mistakes. Check important information.</p>
+{/snippet}
 
 <svelte:window onclick={() => (chatMenuId = null)} />
 
@@ -240,7 +285,7 @@
 
       <nav class="chat-list" aria-label="Conversations">
         {#each chats as chat (chat.id)}
-          <div class:active={initialChat?.id === chat.id} class="chat-row">
+          <div class:active={activeChatId === chat.id} class="chat-row">
             <a href={resolve(`/c/${chat.id}`)} onclick={() => (mobileNav = false)}>{chat.title}</a>
             <button
               class="chat-menu-trigger"
@@ -312,72 +357,46 @@
       />
     </header>
 
-    <section class="messages" aria-live="polite">
-      {#if !initialChat}
-        <div class="empty-state">
-          <img class="brand-mark" src="/kiwi.svg" alt="" aria-hidden="true" />
-          <h2>What can I help with?</h2>
-          <button class="primary-button" onclick={createChat}>Start a conversation</button>
+    {#if messages.length === 0 && !busy}
+      <section class="new-chat-view" aria-live="polite">
+        <div class="new-chat-content">
+          <div class="new-chat-heading">
+            <img class="brand-mark" src="/kiwi.svg" alt="" aria-hidden="true" />
+            <h2>What can I help with?</h2>
+          </div>
+          <div class="new-chat-composer">{@render composer()}</div>
+          {#if failure}<div class="notice error" role="alert">{failure}</div>{/if}
         </div>
-      {:else if messages.length === 0 && !busy}
-        <div class="empty-state">
-          <img class="brand-mark" src="/kiwi.svg" alt="" aria-hidden="true" />
-          <h2>What can I help with?</h2>
-          <p>Send a message to begin.</p>
-        </div>
-      {/if}
-      {#each messages as message (message.id)}
-        <article
-          class:assistant={message.role === 'assistant'}
-          class:user-message={message.role === 'user'}
-          class="message"
-        >
-          <div class="message-label">{message.role === 'assistant' ? appName : 'You'}</div>
-          {#if message.role === 'assistant'}<Markdown content={message.content} />{:else}<p>
-              {message.content}
-            </p>{/if}
-        </article>
-      {/each}
-      {#if streaming}
-        <article class="message assistant streaming">
-          <div class="message-label">{appName}</div>
-          <Markdown content={streaming} /><span class="cursor">▋</span>
-        </article>
-      {:else if busy}
-        <article class="message assistant thinking">
-          <div class="message-label">{appName}</div>
-          <span></span><span></span><span></span>
-        </article>
-      {/if}
-      {#if failure}<div class="notice error" role="alert">{failure}</div>{/if}
-    </section>
+      </section>
+    {:else}
+      <section class="messages" aria-live="polite">
+        {#each messages as message (message.id)}
+          <article
+            class:assistant={message.role === 'assistant'}
+            class:user-message={message.role === 'user'}
+            class="message"
+          >
+            <div class="message-label">{message.role === 'assistant' ? appName : 'You'}</div>
+            {#if message.role === 'assistant'}<Markdown content={message.content} />{:else}<p>
+                {message.content}
+              </p>{/if}
+          </article>
+        {/each}
+        {#if streaming}
+          <article class="message assistant streaming">
+            <div class="message-label">{appName}</div>
+            <Markdown content={streaming} /><span class="cursor">▋</span>
+          </article>
+        {:else if busy}
+          <article class="message assistant thinking">
+            <div class="message-label">{appName}</div>
+            <span></span><span></span><span></span>
+          </article>
+        {/if}
+        {#if failure}<div class="notice error" role="alert">{failure}</div>{/if}
+      </section>
 
-    {#if initialChat}
-      <div class="composer-wrap">
-        <div class="composer">
-          <label class="sr-only" for="prompt">Message</label>
-          <textarea
-            id="prompt"
-            bind:value={prompt}
-            onkeydown={composerKeydown}
-            rows="1"
-            maxlength="32000"
-            placeholder="Message {appName}"
-            disabled={busy}
-          ></textarea>
-          {#if busy}
-            <button class="send-button stop" aria-label="Stop generation" onclick={stop}>■</button>
-          {:else}
-            <button
-              class="send-button"
-              aria-label="Send message"
-              onclick={send}
-              disabled={!prompt.trim()}>↑</button
-            >
-          {/if}
-        </div>
-        <p class="disclaimer">AI can make mistakes. Check important information.</p>
-      </div>
+      <div class="composer-wrap">{@render composer()}</div>
     {/if}
   </main>
 </div>

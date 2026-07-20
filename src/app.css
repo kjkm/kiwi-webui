@@ -603,23 +603,47 @@ aside.desktop-hidden {
   overflow-y: auto;
   padding: 30px 20px 150px;
 }
-.empty-state {
-  min-height: 56vh;
+.new-chat-view {
+  min-height: 0;
   display: flex;
-  flex-direction: column;
+  flex: 1;
+  align-items: center;
+  overflow-y: auto;
+}
+.new-chat-content {
+  width: min(100%, 1152px);
+  margin: auto;
+  padding: 96px 10px;
+  text-align: center;
+  transform: translateY(24px);
+}
+.new-chat-heading {
+  display: flex;
   align-items: center;
   justify-content: center;
-  text-align: center;
-  color: #696d74;
+  gap: 12px;
+  color: var(--ow-gray-800);
 }
-.empty-state h2 {
-  margin: 18px 0 8px;
-  color: #2f3033;
-  font-size: 1.75rem;
+.new-chat-heading .brand-mark {
+  width: 40px;
+  height: 40px;
+  box-shadow: none;
+}
+.new-chat-heading h2 {
+  margin: 0;
+  font-size: 1.875rem;
+  font-weight: 400;
   letter-spacing: -0.035em;
 }
-.empty-state .primary-button {
-  margin-top: 14px;
+.new-chat-composer {
+  width: min(100%, 768px);
+  margin: 0 auto;
+  padding-top: 20px;
+  font-size: 1rem;
+  font-weight: 400;
+}
+.new-chat-composer .disclaimer {
+  display: none;
 }
 .message {
   width: min(100%, 760px);
@@ -919,12 +943,11 @@ aside.desktop-hidden {
   .model-empty {
     color: var(--ow-gray-400);
   }
-  .empty-state,
   .message-label,
   .disclaimer {
     color: var(--ow-gray-400);
   }
-  .empty-state h2 {
+  .new-chat-heading {
     color: var(--ow-gray-100);
   }
   .message.user-message {
