@@ -2,28 +2,32 @@ import { createServer, type Server } from 'node:http';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { resetConfigForTests } from '../src/lib/server/config';
 import { closeDatabase, getDatabase } from '../src/lib/server/db/database';
-import { ChatRepository } from '../src/lib/server/db/chats';
 import { UserRepository } from '../src/lib/server/db/users';
 import {
   POST as generate,
-  _resetActiveChatsForTests
-} from '../src/routes/api/chats/[id]/generate/+server';
+  _resetActiveConversationsForTests
+} from '../src/routes/api/generate/+server';
 
 let provider: Server;
 let mode: 'success' | 'error' | 'slow' = 'success';
 let requests = 0;
 let alice: ReturnType<UserRepository['create']>;
 let bob: ReturnType<UserRepository['create']>;
-let chatId: string;
+const conversationId = '00000000-0000-4000-8000-000000000001';
 
-function event(user: typeof alice, id: string, content = 'hello') {
+function event(
+  user: typeof alice,
+  id = conversationId,
+  messages: Array<{ role: 'user' | 'assistant'; content: string }> = [
+    { role: 'user', content: 'hello' }
+  ]
+) {
   return {
     locals: { user },
-    params: { id },
-    request: new Request(`http://localhost/api/chats/${id}/generate`, {
+    request: new Request('http://localhost/api/generate', {
       method: 'POST',
       headers: { 'content-type': 'application/json', origin: 'http://localhost' },
-      body: JSON.stringify({ content })
+      body: JSON.stringify({ conversationId: id, messages })
     })
   } as never;
 }
@@ -64,46 +68,49 @@ beforeEach(() => {
   const users = new UserRepository(db);
   alice = users.create({ username: 'alice' });
   bob = users.create({ username: 'bob' });
-  chatId = new ChatRepository(db).create(alice.id).id;
   mode = 'success';
   requests = 0;
-  _resetActiveChatsForTests();
+  _resetActiveConversationsForTests();
 });
 
-describe('generation route', () => {
-  it('streams and persists a completed turn', async () => {
-    const response = await generate(event(alice, chatId));
+describe('stateless generation route', () => {
+  it('streams a completed turn without persisting conversation content', async () => {
+    const response = await generate(event(alice));
     expect(response.status).toBe(200);
     expect(await response.text()).toContain('answer');
-    expect(
-      new ChatRepository(getDatabase()).get(alice.id, chatId)?.messages.map((item) => item.content)
-    ).toEqual(['hello', 'answer']);
+    const tables = getDatabase()
+      .prepare("SELECT name FROM sqlite_master WHERE type = 'table'")
+      .all()
+      .map((row) => (row as { name: string }).name);
+    expect(tables).not.toContain('chats');
+    expect(tables).not.toContain('messages');
   });
 
-  it('rejects cross-user access before contacting the provider', async () => {
-    const response = await generate(event(bob, chatId));
-    expect(response.status).toBe(404);
+  it('rejects malformed history before contacting the provider', async () => {
+    const response = await generate(event(alice, 'invalid'));
+    expect(response.status).toBe(400);
     expect(requests).toBe(0);
   });
 
-  it('keeps the user message but no assistant message on provider failure', async () => {
+  it('returns provider failure without writing content', async () => {
     mode = 'error';
-    const response = await generate(event(alice, chatId));
+    const response = await generate(event(alice));
     expect(response.status).toBe(502);
-    expect(
-      new ChatRepository(getDatabase()).get(alice.id, chatId)?.messages.map((item) => item.role)
-    ).toEqual(['user']);
+    expect(requests).toBe(1);
   });
 
-  it('serializes generation and cancels without persisting an assistant response', async () => {
+  it('serializes generation per user and conversation and releases cancellation', async () => {
     mode = 'slow';
-    const first = await generate(event(alice, chatId, 'first'));
-    const second = await generate(event(alice, chatId, 'second'));
-    expect(second.status).toBe(409);
-    await first.body?.cancel();
+    const first = await generate(event(alice));
+    const conflict = await generate(event(alice));
+    expect(conflict.status).toBe(409);
+    const otherUser = await generate(event(bob));
+    expect(otherUser.status).toBe(200);
+    await Promise.all([first.body?.cancel(), otherUser.body?.cancel()]);
     await new Promise((resolve) => setTimeout(resolve, 130));
-    expect(
-      new ChatRepository(getDatabase()).get(alice.id, chatId)?.messages.map((item) => item.content)
-    ).toEqual(['first']);
+    mode = 'success';
+    const retry = await generate(event(alice));
+    expect(retry.status).toBe(200);
+    await retry.body?.cancel();
   });
 });

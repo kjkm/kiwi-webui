@@ -12,7 +12,7 @@ afterEach(() => {
 
 describe('request security', () => {
   it('rejects cross-origin mutations', () => {
-    const target = new URL('https://chat.example.com/api/chats');
+    const target = new URL('https://chat.example.com/api/generate');
     expect(
       hasValidRequestOrigin(
         new Request(target, { method: 'POST', headers: { origin: 'https://evil.example' } }),
