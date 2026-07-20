@@ -1,12 +1,12 @@
 # Kiwi WebUI
 
-A minimal, OIDC-only chat interface for one OpenAI-compatible provider. It uses SvelteKit, SQLite, and the canonical OIDC implementation vendored from `../oidc-standardization/oidc-core`.
+A minimal, OIDC-only chat interface for one OpenAI-compatible provider. It uses SvelteKit, browser-local IndexedDB for conversations, SQLite for account metadata, and the canonical OIDC implementation vendored from `../oidc-standardization/oidc-core`.
 
 ## Features
 
 - Authentik/OpenID Connect login with PKCE and just-in-time accounts
 - Hashed, server-side application sessions
-- Persistent user-owned chats with linear message history
+- Browser-local, user-partitioned chats with linear message history
 - Searchable provider model selection and streaming OpenAI-compatible responses
 - Responsive interface with sanitized Markdown and code blocks
 
@@ -22,7 +22,7 @@ npm install
 npm run dev
 ```
 
-SQLite migrations run automatically. The default database is `./data/kiwi-webui.db`.
+SQLite migrations run automatically. The default database is `./data/kiwi-webui.db` and contains account, session, and OIDC flow metadata only.
 
 Useful checks:
 
@@ -59,6 +59,12 @@ Set:
 
 The provider must implement `POST /chat/completions` with standard OpenAI SSE streaming and a final `data: [DONE]` event. When `GET /models` is available, its models appear in the searchable header selector; otherwise the configured default remains available. Credentials and endpoint configuration are never sent to the browser.
 
+## Conversation storage and privacy
+
+Chat titles and user and assistant messages are stored in IndexedDB in the browser profile, partitioned by the authenticated OIDC user ID. They remain after logout for that same user, but they do not synchronize across browsers or devices and are permanently lost if site data is cleared. No backup, export, or import facility is currently provided.
+
+The backend receives bounded conversation history transiently for each completion and forwards it to the configured model provider. It does not persist chat content or include it in application logs. This is a no-server-retention guarantee, not end-to-end encryption; browser extensions, same-origin scripts, developer tools, and the configured provider remain part of the trust boundary.
+
 ## Production
 
 `PUBLIC_BASE_URL` and SvelteKit's `ORIGIN` must both be the externally visible origin, for example `https://chat.example.com`. Put the service behind TLS and persist `/app/data`.
@@ -81,7 +87,7 @@ The readiness endpoint is `GET /api/health/ready`. It returns 503 when OIDC disc
 Important deployment properties:
 
 - Run one application instance against each SQLite database.
-- Back up the database file and its WAL consistently.
+- Back up the database file and its WAL consistently for account metadata; conversation content exists only in users' browsers.
 - Keep `.env` and provider/OIDC secrets outside the image.
 - Preserve the `data` volume across upgrades and rollbacks.
 
