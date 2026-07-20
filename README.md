@@ -1,13 +1,13 @@
 # Kiwi WebUI
 
-A minimal, OIDC-only chat interface for one OpenAI-compatible model endpoint. It uses SvelteKit, SQLite, and the canonical OIDC implementation vendored from `../oidc-standardization/oidc-core`.
+A minimal, OIDC-only chat interface for one OpenAI-compatible provider. It uses SvelteKit, SQLite, and the canonical OIDC implementation vendored from `../oidc-standardization/oidc-core`.
 
 ## Features
 
 - Authentik/OpenID Connect login with PKCE and just-in-time accounts
 - Hashed, server-side application sessions
 - Persistent user-owned chats with linear message history
-- Streaming OpenAI-compatible responses
+- Searchable provider model selection and streaming OpenAI-compatible responses
 - Responsive interface with sanitized Markdown and code blocks
 
 There are no local passwords, public registration, admin console, files, RAG, tools, web search, or multi-provider management.
@@ -55,9 +55,9 @@ Set:
 
 - `OPENAI_BASE_URL` to the API root, normally ending in `/v1`
 - `OPENAI_API_KEY` to the server-side credential
-- `OPENAI_MODEL` to the fixed model ID
+- `OPENAI_MODEL` to the default model ID
 
-The provider must implement `POST /chat/completions` with standard OpenAI SSE streaming and a final `data: [DONE]` event. Credentials and endpoint configuration are never sent to the browser.
+The provider must implement `POST /chat/completions` with standard OpenAI SSE streaming and a final `data: [DONE]` event. When `GET /models` is available, its models appear in the searchable header selector; otherwise the configured default remains available. Credentials and endpoint configuration are never sent to the browser.
 
 ## Production
 
