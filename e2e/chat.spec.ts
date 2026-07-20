@@ -155,7 +155,7 @@ test('OIDC login, persistent streamed chat, CSRF protection, and logout', async 
   await page.getByRole('button', { name: 'Close Sidebar' }).click();
   await page.waitForTimeout(50);
   const collapsingWidth = await page
-    .locator('aside')
+    .locator('.sidebar-stage')
     .evaluate((element) => element.getBoundingClientRect().width);
   expect(collapsingWidth).toBeGreaterThan(0);
   expect(collapsingWidth).toBeLessThan(260);
@@ -188,10 +188,31 @@ test('OIDC login, persistent streamed chat, CSRF protection, and logout', async 
   await page.getByRole('button', { name: 'Open Sidebar' }).click();
   await page.waitForTimeout(50);
   const expandingWidth = await page
-    .locator('aside')
+    .locator('.sidebar-stage')
     .evaluate((element) => element.getBoundingClientRect().width);
-  expect(expandingWidth).toBeGreaterThan(0);
+  expect(expandingWidth).toBeGreaterThan(52);
   expect(expandingWidth).toBeLessThan(260);
+  const expandingLogo = await page.locator('.rail-brand img').boundingBox();
+  const expandingNewChat = await page
+    .locator('.sidebar-rail .sidebar-control')
+    .nth(1)
+    .boundingBox();
+  expect(
+    expandingLogo!.x + expandingLogo!.width / 2 - (collapsedLogo!.x + collapsedLogo!.width / 2)
+  ).toBeCloseTo(0, 1);
+  expect(
+    expandingLogo!.y + expandingLogo!.height / 2 - (collapsedLogo!.y + collapsedLogo!.height / 2)
+  ).toBeCloseTo(0, 1);
+  expect(
+    expandingNewChat!.x +
+      expandingNewChat!.width / 2 -
+      (collapsedNewChat!.x + collapsedNewChat!.width / 2)
+  ).toBeCloseTo(0, 1);
+  expect(
+    expandingNewChat!.y +
+      expandingNewChat!.height / 2 -
+      (collapsedNewChat!.y + collapsedNewChat!.height / 2)
+  ).toBeCloseTo(0, 1);
   await page.waitForTimeout(170);
 
   const centeredComposer = page.locator('.new-chat-composer');
