@@ -149,8 +149,35 @@ test('OIDC login, persistent streamed chat, CSRF protection, and logout', async 
   await page.goto('/signin');
   await page.getByRole('link', { name: 'Continue with SSO' }).click();
   await expect(page).toHaveURL('/');
+
+  const expandedLogo = await page.locator('.brand-logo').boundingBox();
+  const expandedNewChat = await page.locator('.new-chat > svg').boundingBox();
   await page.getByRole('button', { name: 'Close Sidebar' }).click();
   await expect(page.getByRole('button', { name: 'Open Sidebar' })).toBeVisible();
+  const collapsedLogo = await page.locator('.rail-brand img').boundingBox();
+  const collapsedNewChat = await page
+    .locator('.sidebar-rail > .sidebar-control:nth-child(2) > svg')
+    .boundingBox();
+  expect(expandedLogo).not.toBeNull();
+  expect(expandedNewChat).not.toBeNull();
+  expect(collapsedLogo).not.toBeNull();
+  expect(collapsedNewChat).not.toBeNull();
+  expect(
+    collapsedLogo!.x + collapsedLogo!.width / 2 - (expandedLogo!.x + expandedLogo!.width / 2)
+  ).toBeCloseTo(0, 1);
+  expect(
+    collapsedLogo!.y + collapsedLogo!.height / 2 - (expandedLogo!.y + expandedLogo!.height / 2)
+  ).toBeCloseTo(0, 1);
+  expect(
+    collapsedNewChat!.x +
+      collapsedNewChat!.width / 2 -
+      (expandedNewChat!.x + expandedNewChat!.width / 2)
+  ).toBeCloseTo(0, 1);
+  expect(
+    collapsedNewChat!.y +
+      collapsedNewChat!.height / 2 -
+      (expandedNewChat!.y + expandedNewChat!.height / 2)
+  ).toBeCloseTo(0, 1);
   await page.getByRole('button', { name: 'Open Sidebar' }).click();
 
   const centeredComposer = page.locator('.new-chat-composer');
