@@ -247,6 +247,7 @@ test('OIDC login, persistent streamed chat, CSRF protection, and logout', async 
   await temporaryComposer.fill('Do not retain');
   await temporaryComposer.press('Enter');
   await expect(page.getByText('Hello world.')).toBeVisible();
+  await expect(temporaryComposer).toBeFocused();
   expect(new URL(page.url()).pathname).toBe('/');
   await expect(page.getByRole('button', { name: 'Save temporary chat' })).toBeVisible();
   expect(
@@ -307,6 +308,7 @@ test('OIDC login, persistent streamed chat, CSRF protection, and logout', async 
   await composer.press('Enter');
   await expect(page).toHaveURL(/\/c\//);
   await expect(page.getByText('Hello world.')).toBeVisible();
+  await expect(composer).toBeFocused();
   await expect.poll(() => completionModel).toBe('alternate-model');
   await expect
     .poll(() => page.evaluate(() => (window as Window & { pwned?: boolean }).pwned))
