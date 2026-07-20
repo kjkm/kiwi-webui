@@ -9,6 +9,5 @@
   appName={data.appName}
   defaultModel={data.defaultModel}
   user={data.user}
-  initialChats={data.chats}
-  initialChat={null}
+  requestedChatId={null}
 />

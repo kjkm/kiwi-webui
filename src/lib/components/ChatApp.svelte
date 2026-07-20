@@ -12,35 +12,30 @@
   import SidebarIcon from './icons/Sidebar.svelte';
   import SignOut from './icons/SignOut.svelte';
   import type { ModelInfo } from '$lib/models';
-  import type { Chat, ChatSummary, Message, User } from '$lib/server/db/types';
+  import type { ChatSummary, Message } from '$lib/chat';
+  import { LocalChatRepository } from '$lib/client/chats';
+  import type { User } from '$lib/server/db/types';
 
   let {
     appName,
     defaultModel,
     user,
-    initialChats,
-    initialChat
+    requestedChatId
   }: {
     appName: string;
     defaultModel: string;
     user: User;
-    initialChats: ChatSummary[];
-    initialChat: Chat | null;
+    requestedChatId: string | null;
   } = $props();
 
   let chats = $state<ChatSummary[]>([]);
   let messages = $state<Message[]>([]);
   let activeChatId = $state<string | null>(null);
-  let loadedChatId = $state<string | null | undefined>(undefined);
-  $effect(() => {
-    chats = [...initialChats];
-    const nextId = initialChat?.id ?? null;
-    if (nextId !== loadedChatId) {
-      messages = initialChat ? [...initialChat.messages] : [];
-      activeChatId = nextId;
-      loadedChatId = nextId;
-    }
-  });
+  let loadedRequestedId = $state<string | null | undefined>(undefined);
+  let storageStatus = $state<'loading' | 'ready' | 'error'>('loading');
+  let storageError = $state('');
+  let missingChat = $state(false);
+  let repository: LocalChatRepository | null = null;
   let prompt = $state('');
   let streaming = $state('');
   let busy = $state(false);
@@ -55,8 +50,30 @@
   let sidebarOpen = $state(true);
   let chatMenuId = $state<string | null>(null);
 
-  onMount(async () => {
+  $effect(() => {
+    const id = requestedChatId;
+    if (storageStatus === 'ready' && id !== loadedRequestedId) void loadRequestedChat(id);
+  });
+
+  onMount(() => {
     sidebarOpen = localStorage.getItem('kiwi_sidebar') !== 'closed';
+    void hydrateLocalChats();
+    void loadModels();
+  });
+
+  async function hydrateLocalChats(): Promise<void> {
+    storageStatus = 'loading';
+    storageError = '';
+    try {
+      repository = new LocalChatRepository();
+      chats = await repository.list(user.id);
+      storageStatus = 'ready';
+    } catch {
+      failStorage('Local chat storage is unavailable. Check your browser storage settings.');
+    }
+  }
+
+  async function loadModels(): Promise<void> {
     const response = await fetch('/api/models').catch(() => null);
     if (!response?.ok) return;
     const payload = (await response.json()) as { models: ModelInfo[]; defaultModel: string };
@@ -65,7 +82,35 @@
     selectedModel = modelOptions.some((model) => model.id === saved)
       ? saved!
       : payload.defaultModel;
-  });
+  }
+
+  async function loadRequestedChat(chatId: string | null): Promise<void> {
+    if (!repository) return;
+    loadedRequestedId = chatId;
+    activeChatId = chatId;
+    missingChat = false;
+    if (!chatId) {
+      messages = [];
+      return;
+    }
+    try {
+      const chat = await repository.get(user.id, chatId);
+      if (!chat) {
+        messages = [];
+        missingChat = true;
+        return;
+      }
+      messages = chat.messages;
+    } catch {
+      failStorage('Unable to read chats from local browser storage.');
+    }
+  }
+
+  function failStorage(message: string): void {
+    storageStatus = 'error';
+    storageError = message;
+    busy = false;
+  }
 
   function selectModel(model: string): void {
     selectedModel = model;
@@ -77,16 +122,20 @@
     localStorage.setItem('kiwi_sidebar', sidebarOpen ? 'open' : 'closed');
   }
 
+  async function refreshChats(): Promise<void> {
+    if (repository) chats = await repository.list(user.id);
+  }
+
   async function createChatRecord(): Promise<ChatSummary | null> {
-    const response = await fetch('/api/chats', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({})
-    }).catch(() => null);
-    if (!response?.ok) return null;
-    const { chat } = (await response.json()) as { chat: ChatSummary };
-    chats = [chat, ...chats];
-    return chat;
+    if (!repository || storageStatus !== 'ready') return null;
+    try {
+      const chat = await repository.create(user.id);
+      await refreshChats();
+      return chat;
+    } catch {
+      failStorage('Unable to save chats in local browser storage.');
+      return null;
+    }
   }
 
   async function createChat(): Promise<void> {
@@ -97,82 +146,83 @@
   async function renameChat(chat: ChatSummary): Promise<void> {
     chatMenuId = null;
     const title = window.prompt('Rename chat', chat.title)?.trim();
-    if (!title || title === chat.title) return;
-    const response = await fetch(`/api/chats/${chat.id}`, {
-      method: 'PATCH',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ title })
-    });
-    if (response.ok) chats = chats.map((item) => (item.id === chat.id ? { ...item, title } : item));
+    if (!title || title === chat.title || !repository) return;
+    try {
+      if (await repository.rename(user.id, chat.id, title)) await refreshChats();
+    } catch {
+      failStorage('Unable to rename this local chat.');
+    }
   }
 
   async function deleteChat(chat: ChatSummary): Promise<void> {
     chatMenuId = null;
-    if (!window.confirm(`Delete “${chat.title}”?`)) return;
-    const response = await fetch(`/api/chats/${chat.id}`, { method: 'DELETE' });
-    if (!response.ok) return;
-    chats = chats.filter((item) => item.id !== chat.id);
-    if (activeChatId === chat.id) await goto(resolve('/'));
+    if (!window.confirm(`Delete “${chat.title}”?`) || !repository) return;
+    try {
+      if (!(await repository.delete(user.id, chat.id))) return;
+      await refreshChats();
+      if (activeChatId === chat.id) await goto(resolve('/'));
+    } catch {
+      failStorage('Unable to delete this local chat.');
+    }
   }
 
-  function consumeEvent(raw: string): void {
+  function parseEvent(raw: string): {
+    type: 'delta' | 'done' | 'error';
+    content?: string;
+    error?: string;
+  } | null {
     const line = raw.split(/\r?\n/).find((part) => part.startsWith('data:'));
-    if (!line) return;
-    const value = JSON.parse(line.slice(5).trim()) as {
+    if (!line) return null;
+    return JSON.parse(line.slice(5).trim()) as {
       type: 'delta' | 'done' | 'error';
       content?: string;
-      message?: Message;
       error?: string;
     };
-    if (value.type === 'delta') streaming += value.content ?? '';
-    if (value.type === 'done' && value.message) {
-      messages = [...messages, value.message];
-      streaming = '';
-    }
-    if (value.type === 'error') {
-      streaming = '';
-      failure = value.error ?? 'The response was interrupted.';
-    }
   }
 
   async function send(): Promise<void> {
     const content = prompt.trim();
-    if (!content || busy) return;
+    if (!content || busy || !repository || storageStatus !== 'ready') return;
 
+    busy = true;
     let chatId = activeChatId;
     if (!chatId) {
-      busy = true;
       const chat = await createChatRecord();
       if (!chat) {
         busy = false;
-        failure = 'Unable to create a conversation.';
         return;
       }
       chatId = chat.id;
       activeChatId = chat.id;
+      loadedRequestedId = chat.id;
       replaceState(resolve(`/c/${chat.id}`), {});
     }
 
     prompt = '';
     failure = '';
     streaming = '';
-    busy = true;
-    const optimistic: Message = {
-      id: `pending-${Date.now()}`,
-      chatId,
-      position: messages.length,
-      role: 'user',
-      content,
-      createdAt: Date.now()
-    };
-    messages = [...messages, optimistic];
+    let userMessage: Message | null;
+    try {
+      userMessage = await repository.append(user.id, chatId, 'user', content);
+      if (!userMessage) throw new Error('Unable to save the message');
+      messages = [...messages, userMessage];
+      await refreshChats();
+    } catch {
+      failStorage('Unable to save your message in local browser storage.');
+      return;
+    }
+
     controller = new AbortController();
+    const history = messages.map(({ role, content: messageContent }) => ({
+      role,
+      content: messageContent
+    }));
 
     try {
-      const response = await fetch(`/api/chats/${chatId}/generate`, {
+      const response = await fetch('/api/generate', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ content, model: selectedModel }),
+        body: JSON.stringify({ conversationId: chatId, model: selectedModel, messages: history }),
         signal: controller.signal
       });
       if (!response.ok || !response.body) {
@@ -182,18 +232,34 @@
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let buffer = '';
+      let completed = false;
       while (true) {
         const { value, done } = await reader.read();
         buffer += decoder.decode(value, { stream: !done });
         const events = buffer.split(/\r?\n\r?\n/);
         buffer = events.pop() ?? '';
-        for (const item of events) consumeEvent(item);
-        if (done) {
-          if (buffer) consumeEvent(buffer);
-          break;
+        if (done && buffer) events.push(buffer);
+        for (const item of events) {
+          const value = parseEvent(item);
+          if (value?.type === 'delta') streaming += value.content ?? '';
+          if (value?.type === 'done') completed = true;
+          if (value?.type === 'error')
+            throw new Error(value.error ?? 'The response was interrupted.');
         }
+        if (done) break;
+      }
+      if (!completed || !streaming.trim()) throw new Error('The response was interrupted.');
+      try {
+        const assistant = await repository.append(user.id, chatId, 'assistant', streaming);
+        if (!assistant) throw new Error('Unable to save the response');
+        messages = [...messages, assistant];
+        streaming = '';
+        await refreshChats();
+      } catch {
+        failStorage('Unable to save the response in local browser storage.');
       }
     } catch (error) {
+      streaming = '';
       if ((error as Error).name !== 'AbortError') failure = (error as Error).message;
     } finally {
       busy = false;
@@ -309,7 +375,13 @@
             {/if}
           </div>
         {/each}
-        {#if chats.length === 0}<p class="sidebar-empty">No conversations yet</p>{/if}
+        {#if storageStatus === 'loading'}
+          <p class="sidebar-empty">Loading chats…</p>
+        {:else if storageStatus === 'error'}
+          <p class="sidebar-empty">Local storage unavailable</p>
+        {:else if chats.length === 0}
+          <p class="sidebar-empty">No conversations yet</p>
+        {/if}
       </nav>
     </div>
 
@@ -357,7 +429,23 @@
       />
     </header>
 
-    {#if messages.length === 0 && !busy}
+    {#if storageStatus === 'loading'}
+      <section class="storage-state" aria-live="polite">
+        <p>Loading local chats…</p>
+      </section>
+    {:else if storageStatus === 'error'}
+      <section class="storage-state" role="alert">
+        <h2>Local storage unavailable</h2>
+        <p>{storageError}</p>
+        <button class="primary-button" onclick={hydrateLocalChats}>Try again</button>
+      </section>
+    {:else if missingChat}
+      <section class="storage-state">
+        <h2>Chat not found</h2>
+        <p>This conversation is not stored in this browser.</p>
+        <a class="primary-button" href={resolve('/')}>Start a new chat</a>
+      </section>
+    {:else if messages.length === 0 && !busy}
       <section class="new-chat-view" aria-live="polite">
         <div class="new-chat-content">
           <div class="new-chat-heading">
