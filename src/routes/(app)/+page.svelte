@@ -5,4 +5,10 @@
 </script>
 
 <svelte:head><title>{data.appName}</title></svelte:head>
-<ChatApp appName={data.appName} user={data.user} initialChats={data.chats} initialChat={null} />
+<ChatApp
+  appName={data.appName}
+  defaultModel={data.defaultModel}
+  user={data.user}
+  initialChats={data.chats}
+  initialChat={null}
+/>

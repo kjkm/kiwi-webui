@@ -1,16 +1,25 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
   import { resolve } from '$app/paths';
+  import { onMount, untrack } from 'svelte';
   import Markdown from './Markdown.svelte';
+  import ModelSelector from './ModelSelector.svelte';
+  import type { ModelInfo } from '$lib/models';
   import type { Chat, ChatSummary, Message, User } from '$lib/server/db/types';
 
   let {
     appName,
+    defaultModel,
     user,
     initialChats,
     initialChat
-  }: { appName: string; user: User; initialChats: ChatSummary[]; initialChat: Chat | null } =
-    $props();
+  }: {
+    appName: string;
+    defaultModel: string;
+    user: User;
+    initialChats: ChatSummary[];
+    initialChat: Chat | null;
+  } = $props();
 
   let chats = $state<ChatSummary[]>([]);
   let messages = $state<Message[]>([]);
@@ -29,6 +38,27 @@
   let failure = $state('');
   let mobileNav = $state(false);
   let controller: AbortController | null = null;
+  const initialModel = untrack(() => defaultModel);
+  let modelOptions = $state<ModelInfo[]>(
+    initialModel ? [{ id: initialModel, name: initialModel, ownedBy: null }] : []
+  );
+  let selectedModel = $state(initialModel);
+
+  onMount(async () => {
+    const response = await fetch('/api/models').catch(() => null);
+    if (!response?.ok) return;
+    const payload = (await response.json()) as { models: ModelInfo[]; defaultModel: string };
+    modelOptions = payload.models;
+    const saved = localStorage.getItem('kiwi_model');
+    selectedModel = modelOptions.some((model) => model.id === saved)
+      ? saved!
+      : payload.defaultModel;
+  });
+
+  function selectModel(model: string): void {
+    selectedModel = model;
+    localStorage.setItem('kiwi_model', model);
+  }
 
   async function createChat(): Promise<void> {
     const response = await fetch('/api/chats', {
@@ -103,7 +133,7 @@
       const response = await fetch(`/api/chats/${initialChat.id}/generate`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ content }),
+        body: JSON.stringify({ content, model: selectedModel }),
         signal: controller.signal
       });
       if (!response.ok || !response.body) {
@@ -193,7 +223,12 @@
         aria-label="Open navigation"
         onclick={() => (mobileNav = true)}>☰</button
       >
-      <h1>{initialChat?.title ?? 'New conversation'}</h1>
+      <ModelSelector
+        models={modelOptions}
+        value={selectedModel}
+        disabled={busy}
+        onSelect={selectModel}
+      />
     </header>
 
     <section class="messages" aria-live="polite">
