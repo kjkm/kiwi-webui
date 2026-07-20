@@ -504,6 +504,34 @@ aside.desktop-hidden {
   gap: 10px;
   padding: 0 20px;
 }
+.conversation-header-actions {
+  display: flex;
+  align-self: flex-start;
+  margin-left: auto;
+  padding-top: 12px;
+  color: var(--ow-gray-600);
+}
+.temporary-chat-control {
+  width: 34px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 12px;
+  color: inherit;
+  background: transparent;
+  transition: background 120ms ease;
+}
+.temporary-chat-control:hover,
+.temporary-chat-control.active {
+  background: var(--ow-gray-50);
+}
+.temporary-chat-control:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
 .model-selector {
   position: relative;
   min-width: 0;
@@ -687,6 +715,15 @@ aside.desktop-hidden {
   text-align: center;
   transform: translateY(-10vh);
 }
+.temporary-chat-notice {
+  width: fit-content;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 auto 8px;
+  color: var(--ow-gray-500);
+  font-size: 1rem;
+}
 .new-chat-heading {
   display: flex;
   flex-direction: column;
@@ -818,6 +855,14 @@ aside.desktop-hidden {
 .composer:focus-within {
   border-color: #9ea5ae;
   box-shadow: 0 8px 32px #00000018;
+}
+.composer.temporary {
+  border-style: dashed;
+  border-color: var(--ow-gray-100);
+}
+.composer.temporary:hover,
+.composer.temporary:focus-within {
+  border-color: var(--ow-gray-200);
 }
 .composer textarea {
   min-height: 36px;
@@ -1029,7 +1074,9 @@ aside.desktop-hidden {
   }
   .model-trigger:hover,
   .model-trigger[aria-expanded='true'],
-  .icon-button:hover {
+  .icon-button:hover,
+  .temporary-chat-control:hover,
+  .temporary-chat-control.active {
     background: var(--ow-gray-850);
   }
   .model-menu {
@@ -1066,6 +1113,16 @@ aside.desktop-hidden {
   .composer:focus-within {
     border-color: var(--ow-gray-800);
     box-shadow: none;
+  }
+  .composer.temporary {
+    border-color: var(--ow-gray-800);
+  }
+  .composer.temporary:hover,
+  .composer.temporary:focus-within {
+    border-color: var(--ow-gray-700);
+  }
+  .conversation-header-actions {
+    color: var(--ow-gray-400);
   }
   .composer textarea {
     color: var(--ow-gray-100);

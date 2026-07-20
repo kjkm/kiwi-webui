@@ -5,8 +5,12 @@
   import Markdown from './Markdown.svelte';
   import ModelSelector from './ModelSelector.svelte';
   import ArrowUp from './icons/ArrowUp.svelte';
+  import ChatBubbleDotted from './icons/ChatBubbleDotted.svelte';
+  import ChatBubbleDottedChecked from './icons/ChatBubbleDottedChecked.svelte';
+  import ChatCheck from './icons/ChatCheck.svelte';
   import ChevronUpDown from './icons/ChevronUpDown.svelte';
   import EllipsisHorizontal from './icons/EllipsisHorizontal.svelte';
+  import EyeSlash from './icons/EyeSlash.svelte';
   import GarbageBin from './icons/GarbageBin.svelte';
   import Pencil from './icons/Pencil.svelte';
   import PencilSquare from './icons/PencilSquare.svelte';
@@ -51,6 +55,8 @@
   let selectedModel = $state(initialModel);
   let sidebarOpen = $state(true);
   let chatMenuId = $state<string | null>(null);
+  let temporaryMode = $state(false);
+  let temporaryConversationId = $state<string | null>(null);
 
   $effect(() => {
     const id = requestedChatId;
@@ -88,6 +94,7 @@
 
   async function loadRequestedChat(chatId: string | null): Promise<void> {
     if (!repository) return;
+    if (chatId && temporaryMode) discardTemporaryChat();
     loadedRequestedId = chatId;
     activeChatId = chatId;
     missingChat = false;
@@ -141,8 +148,53 @@
   }
 
   async function createChat(): Promise<void> {
+    if (temporaryMode) {
+      discardTemporaryChat();
+      await goto(resolve('/'));
+      return;
+    }
     const chat = await createChatRecord();
     if (chat) await goto(resolve(`/c/${chat.id}`));
+  }
+
+  function toggleTemporaryChat(): void {
+    if (activeChatId || messages.length > 0 || busy) return;
+    temporaryMode = !temporaryMode;
+    temporaryConversationId = temporaryMode ? crypto.randomUUID() : null;
+    failure = '';
+  }
+
+  function discardTemporaryChat(): void {
+    if (!temporaryMode) return;
+    controller?.abort();
+    controller = null;
+    temporaryMode = false;
+    temporaryConversationId = null;
+    messages = [];
+    streaming = '';
+    prompt = '';
+    failure = '';
+    busy = false;
+  }
+
+  async function saveTemporaryChat(): Promise<void> {
+    if (!temporaryMode || messages.length === 0 || busy || !repository) return;
+    const firstPrompt = messages.find((item) => item.role === 'user')?.content.trim();
+    const title = (firstPrompt?.split(/\r?\n/, 1)[0] || 'New chat').slice(0, 120);
+    try {
+      const chat = await repository.createWithMessages(user.id, title, messages);
+      const saved = await repository.get(user.id, chat.id);
+      if (!saved) throw new Error('Unable to load saved chat');
+      temporaryMode = false;
+      temporaryConversationId = null;
+      activeChatId = chat.id;
+      loadedRequestedId = chat.id;
+      messages = saved.messages;
+      await refreshChats();
+      replaceState(resolve(`/c/${chat.id}`), {});
+    } catch {
+      failure = 'Unable to save this temporary chat in local browser storage.';
+    }
   }
 
   async function renameChat(chat: ChatSummary): Promise<void> {
@@ -187,8 +239,12 @@
     if (!content || busy || !repository || storageStatus !== 'ready') return;
 
     busy = true;
-    let chatId = activeChatId;
-    if (!chatId) {
+    const isTemporary = temporaryMode;
+    let chatId = isTemporary ? temporaryConversationId : activeChatId;
+    if (isTemporary) {
+      chatId ??= crypto.randomUUID();
+      temporaryConversationId = chatId;
+    } else if (!chatId) {
       const chat = await createChatRecord();
       if (!chat) {
         busy = false;
@@ -199,19 +255,36 @@
       loadedRequestedId = chat.id;
       replaceState(resolve(`/c/${chat.id}`), {});
     }
+    if (!chatId) {
+      busy = false;
+      return;
+    }
 
     prompt = '';
     failure = '';
     streaming = '';
-    let userMessage: Message | null;
-    try {
-      userMessage = await repository.append(user.id, chatId, 'user', content);
-      if (!userMessage) throw new Error('Unable to save the message');
-      messages = [...messages, userMessage];
-      await refreshChats();
-    } catch {
-      failStorage('Unable to save your message in local browser storage.');
-      return;
+    if (isTemporary) {
+      messages = [
+        ...messages,
+        {
+          id: crypto.randomUUID(),
+          chatId,
+          position: messages.length,
+          role: 'user',
+          content,
+          createdAt: Date.now()
+        }
+      ];
+    } else {
+      try {
+        const userMessage = await repository.append(user.id, chatId, 'user', content);
+        if (!userMessage) throw new Error('Unable to save the message');
+        messages = [...messages, userMessage];
+        await refreshChats();
+      } catch {
+        failStorage('Unable to save your message in local browser storage.');
+        return;
+      }
     }
 
     controller = new AbortController();
@@ -251,18 +324,37 @@
         if (done) break;
       }
       if (!completed || !streaming.trim()) throw new Error('The response was interrupted.');
-      try {
-        const assistant = await repository.append(user.id, chatId, 'assistant', streaming);
-        if (!assistant) throw new Error('Unable to save the response');
-        messages = [...messages, assistant];
+      const completedContent = streaming;
+      if (isTemporary) {
+        if (!temporaryMode || temporaryConversationId !== chatId) return;
+        messages = [
+          ...messages,
+          {
+            id: crypto.randomUUID(),
+            chatId,
+            position: messages.length,
+            role: 'assistant',
+            content: completedContent,
+            createdAt: Date.now()
+          }
+        ];
         streaming = '';
-        await refreshChats();
-      } catch {
-        failStorage('Unable to save the response in local browser storage.');
+      } else {
+        try {
+          const assistant = await repository.append(user.id, chatId, 'assistant', completedContent);
+          if (!assistant) throw new Error('Unable to save the response');
+          messages = [...messages, assistant];
+          streaming = '';
+          await refreshChats();
+        } catch {
+          failStorage('Unable to save the response in local browser storage.');
+        }
       }
     } catch (error) {
       streaming = '';
-      if ((error as Error).name !== 'AbortError') failure = (error as Error).message;
+      if ((error as Error).name !== 'AbortError' && (!isTemporary || temporaryMode)) {
+        failure = (error as Error).message;
+      }
     } finally {
       busy = false;
       controller = null;
@@ -284,7 +376,7 @@
 </script>
 
 {#snippet composer()}
-  <div class="composer">
+  <div class:temporary={temporaryMode} class="composer">
     <label class="sr-only" for="prompt">Message</label>
     <textarea
       id="prompt"
@@ -329,7 +421,7 @@
 
     <aside class:desktop-hidden={!sidebarOpen} class:open={mobileNav} aria-label="Chat navigation">
       <div class="sidebar-heading">
-        <a class="brand" href={resolve('/')}>
+        <a class="brand" href={resolve('/')} onclick={discardTemporaryChat}>
           <img class="brand-logo" src="/kiwi.svg" alt="" aria-hidden="true" />
           <span>{appName}</span>
         </a>
@@ -360,7 +452,12 @@
         <nav class="chat-list" aria-label="Conversations">
           {#each chats as chat (chat.id)}
             <div class:active={activeChatId === chat.id} class="chat-row">
-              <a href={resolve(`/c/${chat.id}`)} onclick={() => (mobileNav = false)}>{chat.title}</a
+              <a
+                href={resolve(`/c/${chat.id}`)}
+                onclick={() => {
+                  discardTemporaryChat();
+                  mobileNav = false;
+                }}>{chat.title}</a
               >
               <button
                 class="chat-menu-trigger"
@@ -407,7 +504,7 @@
             <div class="account-identity">
               <strong>{user.displayName ?? user.username}</strong><span>@{user.username}</span>
             </div>
-            <form method="POST" action={resolve('/auth/logout')}>
+            <form method="POST" action={resolve('/auth/logout')} onsubmit={discardTemporaryChat}>
               <button type="submit"><SignOut /><span>Sign out</span></button>
             </form>
           </div>
@@ -437,6 +534,33 @@
         disabled={busy}
         onSelect={selectModel}
       />
+      {#if !activeChatId}
+        <div class="conversation-header-actions">
+          {#if temporaryMode && messages.length > 0}
+            <button
+              class="temporary-chat-control"
+              aria-label="Save temporary chat"
+              title="Save Chat"
+              disabled={busy}
+              onclick={saveTemporaryChat}
+            >
+              <ChatCheck />
+            </button>
+          {:else}
+            <button
+              class:active={temporaryMode}
+              class="temporary-chat-control"
+              aria-label="Temporary Chat"
+              aria-pressed={temporaryMode}
+              title="Temporary Chat"
+              disabled={busy}
+              onclick={toggleTemporaryChat}
+            >
+              {#if temporaryMode}<ChatBubbleDottedChecked />{:else}<ChatBubbleDotted />{/if}
+            </button>
+          {/if}
+        </div>
+      {/if}
     </header>
 
     {#if storageStatus === 'loading'}
@@ -458,6 +582,15 @@
     {:else if messages.length === 0 && !busy}
       <section class="new-chat-view" aria-live="polite">
         <div class="new-chat-content">
+          {#if temporaryMode}
+            <div
+              class="temporary-chat-notice"
+              title="This chat won't appear in history and your messages will not be saved."
+            >
+              <EyeSlash />
+              <span>Temporary Chat</span>
+            </div>
+          {/if}
           <div class="new-chat-heading">
             <img class="brand-mark" src="/kiwi.svg" alt="" aria-hidden="true" />
             <h2>Hi, I'm Kiwi!</h2>
