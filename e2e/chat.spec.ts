@@ -182,7 +182,45 @@ test('OIDC login, persistent streamed chat, CSRF protection, and logout', async 
   await page.getByRole('button', { name: 'Rename', exact: true }).click();
   await expect(page.getByRole('link', { name: 'Renamed chat' })).toBeVisible();
 
-  const csrf = await page.request.post('/api/chats', {
+  await page.evaluate(() => {
+    return new Promise<void>((resolve, reject) => {
+      const request = indexedDB.open('kiwi-webui-chats', 1);
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => {
+        const database = request.result;
+        const transaction = database.transaction('chats', 'readwrite');
+        transaction.objectStore('chats').put({
+          key: 'other-user:00000000-0000-4000-8000-000000000099',
+          id: '00000000-0000-4000-8000-000000000099',
+          userId: 'other-user',
+          title: 'Other user chat',
+          createdAt: Date.now(),
+          updatedAt: Date.now()
+        });
+        transaction.oncomplete = () => {
+          database.close();
+          resolve();
+        };
+        transaction.onerror = () => reject(transaction.error);
+      };
+    });
+  });
+  await page.reload();
+  await expect(page.getByText('Other user chat')).toHaveCount(0);
+
+  await page.goto('/c/00000000-0000-4000-8000-000000000098');
+  await expect(page.getByRole('heading', { name: 'Chat not found' })).toBeVisible();
+  await page.getByRole('link', { name: 'Renamed chat' }).click();
+
+  await page.getByLabel('User menu').click();
+  await page.getByRole('button', { name: 'Sign out' }).click();
+  await expect(page).toHaveURL('/signin');
+  await page.getByRole('link', { name: 'Continue with SSO' }).click();
+  await expect(page.getByRole('link', { name: 'Renamed chat' })).toBeVisible();
+  await page.getByRole('link', { name: 'Renamed chat' }).click();
+  await expect(page.getByText('Hello world.')).toBeVisible();
+
+  const csrf = await page.request.post('/api/generate', {
     headers: { origin: 'http://evil.example' },
     data: {}
   });
