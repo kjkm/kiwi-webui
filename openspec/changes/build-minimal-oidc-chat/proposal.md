@@ -8,7 +8,7 @@ Create a small, maintainable chat application inspired by Open WebUI without inh
 - Add OIDC-only authentication and just-in-time local accounts using `../oidc-standardization/oidc-core` with Authentik.
 - Add secure server-side sessions, sign-in, sign-out, and basic account identity display.
 - Add persistent chats and linear user/assistant message history.
-- Add streamed chat completions through one server-configured OpenAI-compatible provider.
+- Add model discovery, selection, and streamed chat completions through one server-configured OpenAI-compatible provider.
 - Add a responsive, minimal chat interface using Open WebUI as a behavioral and visual reference.
 - Exclude local passwords, public signup, admin/RBAC, files, RAG, tools, skills, web search, audio, images, sharing, branching conversations, and multi-provider management.
 

@@ -11,6 +11,17 @@ The system SHALL provide a responsive interface containing chat navigation, the 
 - **WHEN** an authenticated user opens the application on a narrow viewport
 - **THEN** the conversation remains primary and chat navigation is available through a compact control
 
+### Requirement: Model selection
+The system SHALL show an Open WebUI-style searchable model selector in the conversation header instead of the chat title and SHALL use the selected provider model for subsequent completions.
+
+#### Scenario: Select an available model
+- **WHEN** an authenticated user chooses a model from the header selector
+- **THEN** the interface displays that model as selected and uses it for the next completion
+
+#### Scenario: Restore model preference
+- **WHEN** a user returns with a previously selected model that remains available
+- **THEN** the interface restores that model selection
+
 ### Requirement: Clear chat interaction states
 The system SHALL visibly distinguish empty, loading, streaming, completed, and failed conversation states.
 

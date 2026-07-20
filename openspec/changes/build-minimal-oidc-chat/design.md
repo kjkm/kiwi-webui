@@ -34,7 +34,7 @@ Issue random opaque sessions in an HttpOnly, Secure-in-production, SameSite=Lax 
 
 ### Server-owned model configuration
 
-Configure one OpenAI-compatible base URL, API key, and model through environment variables. The browser never receives provider credentials or selects arbitrary endpoints. The server validates requests, loads the user's ordered conversation, forwards it to the configured chat-completions endpoint, and relays the upstream SSE stream.
+Configure one OpenAI-compatible base URL, API key, and default model through environment variables. The server discovers selectable models from the provider's `/models` endpoint, caches the list briefly, and validates every requested model against it; the configured default remains available when discovery is unsupported. The browser never receives provider credentials or selects arbitrary endpoints. The server validates requests, loads the user's ordered conversation, forwards it to the configured chat-completions endpoint, and relays the upstream SSE stream.
 
 ### Linear conversation model
 

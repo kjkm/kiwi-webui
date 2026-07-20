@@ -55,3 +55,10 @@
 - [x] 7.1 Add a gated GitHub Actions workflow publishing GHCR `latest` and commit-SHA images
 - [x] 7.2 Add a Watchtower-compatible deployment compose and release environment template
 - [x] 7.3 Harden and validate the Docker build context and release documentation
+
+## 8. Model Selection
+
+- [x] 8.1 Discover and validate models from the configured OpenAI-compatible provider
+- [x] 8.2 Replace the conversation title with a searchable Open WebUI-style model selector
+- [x] 8.3 Send the selected model with generation requests and retain the browser preference
+- [x] 8.4 Cover model discovery, selection, completion routing, and production build validation
