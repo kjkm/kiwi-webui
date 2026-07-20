@@ -1,54 +1,39 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type Database from 'better-sqlite3';
 import { testDatabase } from './support/database';
-import { ChatRepository } from '../src/lib/server/db/chats';
 import { SessionRepository, hashSessionToken } from '../src/lib/server/db/sessions';
 import { SqliteFlowStore } from '../src/lib/server/db/flows';
 import { UserRepository } from '../src/lib/server/db/users';
 
 let db: Database.Database;
 let users: UserRepository;
-let chats: ChatRepository;
 
 beforeEach(() => {
   db = testDatabase();
   users = new UserRepository(db);
-  chats = new ChatRepository(db);
 });
 afterEach(() => db.close());
 
 describe('repositories', () => {
-  it('orders messages and isolates chat owners', () => {
-    const alice = users.create({ username: 'alice' });
-    const bob = users.create({ username: 'bob' });
-    const chat = chats.create(alice.id, 'Hello');
-    chats.append(alice.id, chat.id, 'user', 'one');
-    chats.append(alice.id, chat.id, 'assistant', 'two');
-    expect(chats.get(alice.id, chat.id)?.messages.map((message) => message.content)).toEqual([
-      'one',
-      'two'
-    ]);
-    expect(chats.get(bob.id, chat.id)).toBeNull();
-    expect(chats.rename(bob.id, chat.id, 'Stolen')).toBe(false);
-    expect(chats.delete(bob.id, chat.id)).toBe(false);
-  });
-
-  it('cascades messages when a chat is deleted', () => {
-    const user = users.create({ username: 'alice' });
-    const chat = chats.create(user.id);
-    chats.append(user.id, chat.id, 'user', 'hello');
-    expect(chats.delete(user.id, chat.id)).toBe(true);
-    expect(
-      (db.prepare('SELECT count(*) count FROM messages').get() as { count: number }).count
-    ).toBe(0);
-  });
-
-  it('enforces case-insensitive username and message constraints', () => {
-    users.create({ username: 'Alice' });
+  it('stores user metadata and enforces case-insensitive usernames', () => {
+    const user = users.create({ username: 'Alice', displayName: 'Alice Example' });
+    expect(users.getByUsername('ALICE')).toMatchObject({
+      id: user.id,
+      displayName: 'Alice Example'
+    });
     expect(() => users.create({ username: 'alice' })).toThrow();
-    const user = users.getByUsername('ALICE')!;
-    const chat = chats.create(user.id);
-    expect(chats.append(user.id, chat.id, 'user', '   ')).toBeNull();
+  });
+
+  it('contains no server-side conversation tables', () => {
+    const tables = db
+      .prepare("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name")
+      .all()
+      .map((row) => (row as { name: string }).name);
+    expect(tables).toContain('users');
+    expect(tables).toContain('sessions');
+    expect(tables).toContain('oidc_flows');
+    expect(tables).not.toContain('chats');
+    expect(tables).not.toContain('messages');
   });
 
   it('stores only a session hash and expires sessions', () => {
