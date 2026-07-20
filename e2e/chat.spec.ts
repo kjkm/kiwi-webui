@@ -232,7 +232,8 @@ test('OIDC login, persistent streamed chat, CSRF protection, and logout', async 
   await page.emulateMedia({ colorScheme: 'light' });
   await temporaryToggle.click();
   await expect(temporaryToggle).toHaveAttribute('aria-pressed', 'true');
-  await expect(page.getByText('Temporary Chat', { exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Incognito' })).toBeVisible();
+  await expect(page.getByText('Temporary Chat', { exact: true })).toHaveCount(0);
   await expect(page.locator('.temporary-brand-mark')).toBeVisible();
   await expect(page.locator('.new-chat-heading img')).toHaveCount(0);
   await expect
@@ -279,6 +280,7 @@ test('OIDC login, persistent streamed chat, CSRF protection, and logout', async 
   await expect(page.getByText('Do not retain')).toHaveCount(0);
   await expect(page.locator('.temporary-brand-mark')).toHaveCount(0);
   await expect(page.locator('.new-chat-heading img')).toBeVisible();
+  await expect(page.getByRole('heading', { name: "Hi, I'm Kiwi!" })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Temporary Chat' })).toHaveAttribute(
     'aria-pressed',
     'false'
