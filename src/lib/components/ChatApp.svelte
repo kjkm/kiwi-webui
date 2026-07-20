@@ -290,7 +290,7 @@
       onkeydown={composerKeydown}
       rows="1"
       maxlength="32000"
-      placeholder="What can I help with"
+      placeholder="What can I help with?"
       disabled={busy}
     ></textarea>
     {#if busy}
