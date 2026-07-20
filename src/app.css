@@ -715,15 +715,6 @@ aside.desktop-hidden {
   text-align: center;
   transform: translateY(-10vh);
 }
-.temporary-chat-notice {
-  width: fit-content;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 0 auto 8px;
-  color: var(--ow-gray-500);
-  font-size: 1rem;
-}
 .new-chat-heading {
   display: flex;
   flex-direction: column;

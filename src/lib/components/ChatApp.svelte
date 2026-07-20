@@ -10,7 +10,6 @@
   import ChatCheck from './icons/ChatCheck.svelte';
   import ChevronUpDown from './icons/ChevronUpDown.svelte';
   import EllipsisHorizontal from './icons/EllipsisHorizontal.svelte';
-  import EyeSlash from './icons/EyeSlash.svelte';
   import GarbageBin from './icons/GarbageBin.svelte';
   import Pencil from './icons/Pencil.svelte';
   import PencilSquare from './icons/PencilSquare.svelte';
@@ -595,22 +594,13 @@
     {:else if messages.length === 0 && !busy}
       <section class="new-chat-view" aria-live="polite">
         <div class="new-chat-content">
-          {#if temporaryMode}
-            <div
-              class="temporary-chat-notice"
-              title="This chat won't appear in history and your messages will not be saved."
-            >
-              <EyeSlash />
-              <span>Temporary Chat</span>
-            </div>
-          {/if}
           <div class="new-chat-heading">
             {#if temporaryMode}
               <span class="brand-mark temporary-brand-mark" aria-hidden="true"></span>
             {:else}
               <img class="brand-mark" src="/kiwi.svg" alt="" aria-hidden="true" />
             {/if}
-            <h2>Hi, I'm Kiwi!</h2>
+            <h2>{temporaryMode ? 'Incognito' : "Hi, I'm Kiwi!"}</h2>
           </div>
           <div class="new-chat-composer">{@render composer()}</div>
           {#if failure}<div class="notice error" role="alert">{failure}</div>{/if}
