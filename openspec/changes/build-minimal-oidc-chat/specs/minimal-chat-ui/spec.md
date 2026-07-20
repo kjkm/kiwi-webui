@@ -11,6 +11,17 @@ The system SHALL provide a responsive interface containing chat navigation, the 
 - **WHEN** an authenticated user opens the application on a narrow viewport
 - **THEN** the conversation remains primary and chat navigation is available through a compact control
 
+### Requirement: Open WebUI sidebar fidelity
+The system SHALL match Open WebUI's iconography and sidebar styling for the preserved logo, new-chat, expand/collapse, chat-list, chat-action, and account controls.
+
+#### Scenario: Collapse and expand the sidebar
+- **WHEN** a desktop user collapses or expands chat navigation
+- **THEN** the interface uses Open WebUI's sidebar icon and switches between its 260px panel treatment and compact navigation rail
+
+#### Scenario: Use preserved sidebar controls
+- **WHEN** a user views or operates new chat, chat actions, or account controls
+- **THEN** those controls use the corresponding Open WebUI icon paths, sizing, spacing, radii, and hover treatments
+
 ### Requirement: Model selection
 The system SHALL show an Open WebUI-style searchable model selector in the conversation header instead of the chat title and SHALL use the selected provider model for subsequent completions.
 

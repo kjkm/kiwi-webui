@@ -42,7 +42,7 @@ Persist chats separately from ordered messages. A chat has one owner and message
 
 ### Small original interface
 
-Implement an original responsive shell with a chat list, new-chat action, conversation view, composer, streaming indicator, account identity, and logout. Render a deliberately limited Markdown subset and sanitize generated HTML before insertion. Match useful Open WebUI interaction patterns without importing its feature-heavy chat implementation.
+Implement a responsive shell with a chat list, new-chat action, conversation view, composer, streaming indicator, account identity, and logout. For the preserved sidebar surface, reuse Open WebUI's icon paths, 260px expanded layout, collapsed rail, spacing, radii, hover states, chat-item action menu, and account-row treatment while leaving excluded features absent. Render a deliberately limited Markdown subset and sanitize generated HTML before insertion; do not import Open WebUI's feature-heavy chat implementation.
 
 ### Test boundaries
 

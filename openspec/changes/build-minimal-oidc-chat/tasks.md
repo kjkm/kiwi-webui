@@ -62,3 +62,10 @@
 - [x] 8.2 Replace the conversation title with a searchable Open WebUI-style model selector
 - [x] 8.3 Send the selected model with generation requests and retain the browser preference
 - [x] 8.4 Cover model discovery, selection, completion routing, and production build validation
+
+## 9. Sidebar Fidelity
+
+- [x] 9.1 Add the preserved Open WebUI sidebar icon components
+- [x] 9.2 Rebuild the expanded sidebar and compact rail with Open WebUI dimensions and styling
+- [x] 9.3 Replace text glyph actions with Open WebUI chat and account menus
+- [x] 9.4 Cover sidebar collapse, chat actions, account logout, and production build validation
