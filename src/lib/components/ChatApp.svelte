@@ -1,7 +1,7 @@
 <script lang="ts">
   import { goto, replaceState } from '$app/navigation';
   import { resolve } from '$app/paths';
-  import { onMount, untrack } from 'svelte';
+  import { onMount, tick, untrack } from 'svelte';
   import Markdown from './Markdown.svelte';
   import ModelSelector from './ModelSelector.svelte';
   import ArrowUp from './icons/ArrowUp.svelte';
@@ -57,6 +57,7 @@
   let chatMenuId = $state<string | null>(null);
   let temporaryMode = $state(false);
   let temporaryConversationId = $state<string | null>(null);
+  let composerElement: HTMLTextAreaElement | null = null;
 
   $effect(() => {
     const id = requestedChatId;
@@ -288,6 +289,9 @@
       }
     }
 
+    await tick();
+    composerElement?.focus();
+
     controller = new AbortController();
     const history = messages.map(({ role, content: messageContent }) => ({
       role,
@@ -381,12 +385,12 @@
     <label class="sr-only" for="prompt">Message</label>
     <textarea
       id="prompt"
+      bind:this={composerElement}
       bind:value={prompt}
       onkeydown={composerKeydown}
       rows="1"
       maxlength="32000"
       placeholder="What can I help with?"
-      disabled={busy}
     ></textarea>
     {#if busy}
       <button class="send-button stop" aria-label="Stop generation" onclick={stop}>
