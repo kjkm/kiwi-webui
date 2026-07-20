@@ -4,6 +4,13 @@
   import { onMount, untrack } from 'svelte';
   import Markdown from './Markdown.svelte';
   import ModelSelector from './ModelSelector.svelte';
+  import ChevronUpDown from './icons/ChevronUpDown.svelte';
+  import EllipsisHorizontal from './icons/EllipsisHorizontal.svelte';
+  import GarbageBin from './icons/GarbageBin.svelte';
+  import Pencil from './icons/Pencil.svelte';
+  import PencilSquare from './icons/PencilSquare.svelte';
+  import SidebarIcon from './icons/Sidebar.svelte';
+  import SignOut from './icons/SignOut.svelte';
   import type { ModelInfo } from '$lib/models';
   import type { Chat, ChatSummary, Message, User } from '$lib/server/db/types';
 
@@ -43,8 +50,11 @@
     initialModel ? [{ id: initialModel, name: initialModel, ownedBy: null }] : []
   );
   let selectedModel = $state(initialModel);
+  let sidebarOpen = $state(true);
+  let chatMenuId = $state<string | null>(null);
 
   onMount(async () => {
+    sidebarOpen = localStorage.getItem('kiwi_sidebar') !== 'closed';
     const response = await fetch('/api/models').catch(() => null);
     if (!response?.ok) return;
     const payload = (await response.json()) as { models: ModelInfo[]; defaultModel: string };
@@ -60,6 +70,11 @@
     localStorage.setItem('kiwi_model', model);
   }
 
+  function toggleSidebar(): void {
+    sidebarOpen = !sidebarOpen;
+    localStorage.setItem('kiwi_sidebar', sidebarOpen ? 'open' : 'closed');
+  }
+
   async function createChat(): Promise<void> {
     const response = await fetch('/api/chats', {
       method: 'POST',
@@ -73,6 +88,7 @@
   }
 
   async function renameChat(chat: ChatSummary): Promise<void> {
+    chatMenuId = null;
     const title = window.prompt('Rename chat', chat.title)?.trim();
     if (!title || title === chat.title) return;
     const response = await fetch(`/api/chats/${chat.id}`, {
@@ -84,6 +100,7 @@
   }
 
   async function deleteChat(chat: ChatSummary): Promise<void> {
+    chatMenuId = null;
     if (!window.confirm(`Delete “${chat.title}”?`)) return;
     const response = await fetch(`/api/chats/${chat.id}`, { method: 'DELETE' });
     if (!response.ok) return;
@@ -176,37 +193,99 @@
   }
 </script>
 
-<div class="app-shell">
-  <aside class:open={mobileNav} aria-label="Chat navigation">
+<svelte:window onclick={() => (chatMenuId = null)} />
+
+<div class:sidebar-collapsed={!sidebarOpen} class="app-shell">
+  {#if !sidebarOpen}
+    <nav class="sidebar-rail desktop-only" aria-label="Collapsed chat navigation">
+      <button class="rail-brand sidebar-control" aria-label="Open Sidebar" onclick={toggleSidebar}>
+        <img src="/kiwi.svg" alt="" aria-hidden="true" />
+        <span class="rail-sidebar-icon"><SidebarIcon /></span>
+      </button>
+      <button class="sidebar-control" aria-label="New Chat" onclick={createChat}>
+        <PencilSquare strokeWidth="2" />
+      </button>
+    </nav>
+  {/if}
+
+  <aside class:desktop-hidden={!sidebarOpen} class:open={mobileNav} aria-label="Chat navigation">
     <div class="sidebar-heading">
       <a class="brand" href={resolve('/')}>
         <img class="brand-logo" src="/kiwi.svg" alt="" aria-hidden="true" />
         <span>{appName}</span>
       </a>
       <button
-        class="icon-button mobile-only"
-        aria-label="Close navigation"
-        onclick={() => (mobileNav = false)}>×</button
+        class="sidebar-control desktop-only"
+        aria-label="Close Sidebar"
+        onclick={toggleSidebar}
       >
+        <SidebarIcon />
+      </button>
+      <button
+        class="sidebar-control mobile-only"
+        aria-label="Close Sidebar"
+        onclick={() => (mobileNav = false)}
+      >
+        <SidebarIcon />
+      </button>
     </div>
-    <button class="new-chat" onclick={createChat}>＋ New chat</button>
-    <nav class="chat-list" aria-label="Conversations">
-      {#each chats as chat (chat.id)}
-        <div class:active={initialChat?.id === chat.id} class="chat-row">
-          <a href={resolve(`/c/${chat.id}`)} onclick={() => (mobileNav = false)}>{chat.title}</a>
-          <div class="chat-actions">
-            <button aria-label={`Rename ${chat.title}`} onclick={() => renameChat(chat)}>✎</button>
-            <button aria-label={`Delete ${chat.title}`} onclick={() => deleteChat(chat)}>×</button>
+
+    <div class="sidebar-scroll">
+      <div class="sidebar-primary-actions">
+        <button class="new-chat" aria-label="New Chat" onclick={createChat}>
+          <PencilSquare strokeWidth="2" />
+          <span>New Chat</span>
+        </button>
+      </div>
+
+      <nav class="chat-list" aria-label="Conversations">
+        {#each chats as chat (chat.id)}
+          <div class:active={initialChat?.id === chat.id} class="chat-row">
+            <a href={resolve(`/c/${chat.id}`)} onclick={() => (mobileNav = false)}>{chat.title}</a>
+            <button
+              class="chat-menu-trigger"
+              class:visible={chatMenuId === chat.id}
+              aria-label={`More options for ${chat.title}`}
+              aria-expanded={chatMenuId === chat.id}
+              onclick={(event) => {
+                event.stopPropagation();
+                chatMenuId = chatMenuId === chat.id ? null : chat.id;
+              }}
+            >
+              <EllipsisHorizontal />
+            </button>
+            {#if chatMenuId === chat.id}
+              <div class="chat-menu">
+                <button onclick={() => renameChat(chat)}><Pencil /><span>Rename</span></button>
+                <button class="danger" onclick={() => deleteChat(chat)}
+                  ><GarbageBin /><span>Delete</span></button
+                >
+              </div>
+            {/if}
           </div>
+        {/each}
+        {#if chats.length === 0}<p class="sidebar-empty">No conversations yet</p>{/if}
+      </nav>
+    </div>
+
+    <div class="sidebar-footer">
+      <details class="account-menu">
+        <summary class="account-row" aria-label="User menu">
+          <span class="account-avatar"
+            >{(user.displayName ?? user.username).slice(0, 1).toUpperCase()}</span
+          >
+          <span class="account-name">{user.displayName ?? user.username}</span>
+          <ChevronUpDown />
+        </summary>
+        <div class="account-popover">
+          <div class="account-identity">
+            <strong>{user.displayName ?? user.username}</strong><span>@{user.username}</span>
+          </div>
+          <form method="POST" action={resolve('/auth/logout')}>
+            <button type="submit"><SignOut /><span>Sign out</span></button>
+          </form>
         </div>
-      {/each}
-      {#if chats.length === 0}<p class="sidebar-empty">No conversations yet</p>{/if}
-    </nav>
-    <div class="account">
-      <div><strong>{user.displayName ?? user.username}</strong><span>@{user.username}</span></div>
-      <form method="POST" action={resolve('/auth/logout')}>
-        <button type="submit">Sign out</button>
-      </form>
+      </details>
     </div>
   </aside>
 
@@ -219,10 +298,12 @@
   <main class="conversation">
     <header class="conversation-header">
       <button
-        class="icon-button mobile-only"
-        aria-label="Open navigation"
-        onclick={() => (mobileNav = true)}>☰</button
+        class="sidebar-control mobile-only"
+        aria-label="Open Sidebar"
+        onclick={() => (mobileNav = true)}
       >
+        <SidebarIcon />
+      </button>
       <ModelSelector
         models={modelOptions}
         value={selectedModel}
