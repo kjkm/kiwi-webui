@@ -60,7 +60,8 @@
 
   $effect(() => {
     const id = requestedChatId;
-    if (storageStatus === 'ready' && id !== loadedRequestedId) void loadRequestedChat(id);
+    const loadedId = untrack(() => loadedRequestedId);
+    if (storageStatus === 'ready' && id !== loadedId) void loadRequestedChat(id);
   });
 
   onMount(() => {
