@@ -37,8 +37,12 @@ The system SHALL show an Open WebUI-style searchable model selector in the conve
 The system SHALL visibly distinguish empty, loading, streaming, completed, and failed conversation states.
 
 #### Scenario: Start a new chat
-- **WHEN** a user opens a chat with no messages
-- **THEN** the interface presents a focused composer and a clear empty state
+- **WHEN** a user opens the new-chat route or a chat with no messages
+- **THEN** the interface groups the greeting and composer near the vertical center in the Open WebUI placeholder layout without suggestion cards
+
+#### Scenario: Send from the new-chat route
+- **WHEN** a user submits the centered composer before a chat exists
+- **THEN** the system creates the chat, updates its URL, and transitions to the normal conversation layout
 
 #### Scenario: Receive streamed content
 - **WHEN** an assistant response is streaming

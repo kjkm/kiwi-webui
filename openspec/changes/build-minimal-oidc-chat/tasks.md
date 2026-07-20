@@ -69,3 +69,9 @@
 - [x] 9.2 Rebuild the expanded sidebar and compact rail with Open WebUI dimensions and styling
 - [x] 9.3 Replace text glyph actions with Open WebUI chat and account menus
 - [x] 9.4 Cover sidebar collapse, chat actions, account logout, and production build validation
+
+## 10. New Chat Layout Fidelity
+
+- [x] 10.1 Center the greeting and composer using Open WebUI's placeholder proportions
+- [x] 10.2 Create a persistent chat when the centered composer is submitted
+- [x] 10.3 Cover centered composition and transition to the conversation route
