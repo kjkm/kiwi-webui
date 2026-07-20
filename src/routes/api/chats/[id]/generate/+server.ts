@@ -2,6 +2,7 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { ChatRepository, validMessage } from '$lib/server/db/chats';
 import { getDatabase } from '$lib/server/db/database';
+import { resolveProviderModel } from '$lib/server/llm/models';
 import { consumeOpenAiStream, requestCompletion } from '$lib/server/llm/openai';
 
 const activeChats = new Set<string>();
@@ -16,9 +17,19 @@ export const POST: RequestHandler = async ({ locals, params, request }) => {
   if (activeChats.has(params.id))
     return json({ error: 'Generation already active' }, { status: 409 });
 
-  const body = (await request.json().catch(() => ({}))) as { content?: unknown };
+  const body = (await request.json().catch(() => ({}))) as {
+    content?: unknown;
+    model?: unknown;
+  };
   if (!validMessage(body.content))
     return json({ error: 'Message must be 1–32000 characters' }, { status: 400 });
+
+  let selectedModel: string;
+  try {
+    selectedModel = await resolveProviderModel(body.model);
+  } catch {
+    return json({ error: 'Model is not available' }, { status: 400 });
+  }
 
   activeChats.add(params.id);
   const userMessage = chats.append(userId, params.id, 'user', body.content);
@@ -30,7 +41,8 @@ export const POST: RequestHandler = async ({ locals, params, request }) => {
   try {
     upstream = await requestCompletion(
       history.messages.map(({ role, content }) => ({ role, content })),
-      abort.signal
+      abort.signal,
+      selectedModel
     );
   } catch (error) {
     activeChats.delete(params.id);

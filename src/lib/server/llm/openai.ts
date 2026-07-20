@@ -8,6 +8,7 @@ export interface ProviderMessage {
 export async function requestCompletion(
   messages: ProviderMessage[],
   signal: AbortSignal,
+  model = getConfig().openai.model,
   fetcher: typeof fetch = fetch
 ): Promise<Response> {
   const config = getConfig();
@@ -21,7 +22,7 @@ export async function requestCompletion(
       'content-type': 'application/json',
       accept: 'text/event-stream'
     },
-    body: JSON.stringify({ model: config.openai.model, messages, stream: true }),
+    body: JSON.stringify({ model, messages, stream: true }),
     signal
   });
   if (!response.ok || !response.body)

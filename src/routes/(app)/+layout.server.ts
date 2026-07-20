@@ -8,6 +8,7 @@ export const load: LayoutServerLoad = ({ locals }) => {
   if (!locals.user) redirect(303, '/signin');
   return {
     appName: getConfig().appName,
+    defaultModel: getConfig().openai.model,
     user: locals.user,
     chats: new ChatRepository(getDatabase()).list(locals.user.id)
   };
