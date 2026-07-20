@@ -222,6 +222,79 @@ test('OIDC login, persistent streamed chat, CSRF protection, and logout', async 
   const sendButtonBox = await page.getByRole('button', { name: 'Send message' }).boundingBox();
   expect(sendButtonBox).toMatchObject({ width: 32, height: 32 });
 
+  const temporaryToggle = page.getByRole('button', { name: 'Temporary Chat' });
+  await page.setViewportSize({ width: 700, height: 800 });
+  await page.emulateMedia({ colorScheme: 'dark' });
+  await expect(temporaryToggle).toBeVisible();
+  await temporaryToggle.focus();
+  await expect(temporaryToggle).toBeFocused();
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.emulateMedia({ colorScheme: 'light' });
+  await temporaryToggle.click();
+  await expect(temporaryToggle).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByText('Temporary Chat', { exact: true })).toBeVisible();
+  await expect
+    .poll(() =>
+      page
+        .locator('.new-chat-composer .composer')
+        .evaluate((element) => getComputedStyle(element).borderTopStyle)
+    )
+    .toBe('dashed');
+
+  const temporaryComposer = page.getByRole('textbox', { name: 'Message' });
+  await temporaryComposer.fill('Do not retain');
+  await temporaryComposer.press('Enter');
+  await expect(page.getByText('Hello world.')).toBeVisible();
+  expect(new URL(page.url()).pathname).toBe('/');
+  await expect(page.getByRole('button', { name: 'Save temporary chat' })).toBeVisible();
+  expect(
+    await page.evaluate(async () => {
+      const request = indexedDB.open('kiwi-webui-chats', 1);
+      const database = await new Promise<IDBDatabase>((resolve, reject) => {
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+      });
+      const transaction = database.transaction(['chats', 'messages']);
+      const counts = await Promise.all([
+        new Promise<number>((resolve, reject) => {
+          const count = transaction.objectStore('chats').count();
+          count.onsuccess = () => resolve(count.result);
+          count.onerror = () => reject(count.error);
+        }),
+        new Promise<number>((resolve, reject) => {
+          const count = transaction.objectStore('messages').count();
+          count.onsuccess = () => resolve(count.result);
+          count.onerror = () => reject(count.error);
+        })
+      ]);
+      database.close();
+      return counts;
+    })
+  ).toEqual([0, 0]);
+
+  await page.reload();
+  await expect(page.getByText('Do not retain')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Temporary Chat' })).toHaveAttribute(
+    'aria-pressed',
+    'false'
+  );
+
+  await page.getByRole('button', { name: 'Temporary Chat' }).click();
+  await page.getByRole('textbox', { name: 'Message' }).fill('Discard on navigation');
+  await page.getByRole('textbox', { name: 'Message' }).press('Enter');
+  await expect(page.getByText('Discard on navigation')).toBeVisible();
+  await page.locator('.brand').click();
+  await expect(page.getByText('Discard on navigation')).toHaveCount(0);
+
+  await page.getByRole('button', { name: 'Temporary Chat' }).click();
+  await page.getByRole('textbox', { name: 'Message' }).fill('Save temporary');
+  await page.getByRole('textbox', { name: 'Message' }).press('Enter');
+  await expect(page.getByText('Hello world.')).toBeVisible();
+  await page.getByRole('button', { name: 'Save temporary chat' }).click();
+  await expect(page).toHaveURL(/\/c\//);
+  await expect(page.getByRole('link', { name: 'Save temporary' })).toBeVisible();
+
+  await page.getByRole('button', { name: 'New Chat', exact: true }).click();
   await page.getByRole('button', { name: 'E2E Model' }).click();
   await page.getByRole('option', { name: /Alternate Model/ }).click();
 
