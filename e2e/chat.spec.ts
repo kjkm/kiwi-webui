@@ -149,9 +149,11 @@ test('OIDC login, persistent streamed chat, CSRF protection, and logout', async 
   await page.goto('/signin');
   await page.getByRole('link', { name: 'Continue with SSO' }).click();
   await expect(page).toHaveURL('/');
-  await expect(page.getByText('@e2e-user')).toBeVisible();
+  await page.getByRole('button', { name: 'Close Sidebar' }).click();
+  await expect(page.getByRole('button', { name: 'Open Sidebar' })).toBeVisible();
+  await page.getByRole('button', { name: 'Open Sidebar' }).click();
 
-  await page.getByRole('button', { name: /New chat/ }).click();
+  await page.getByRole('button', { name: 'New Chat' }).click();
   await expect(page).toHaveURL(/\/c\//);
   await page.getByRole('button', { name: 'E2E Model' }).click();
   await page.getByRole('option', { name: /Alternate Model/ }).click();
@@ -171,8 +173,9 @@ test('OIDC login, persistent streamed chat, CSRF protection, and logout', async 
   await expect(page.getByText('Hello world.')).toBeVisible();
 
   await page.getByRole('link', { name: 'New chat', exact: true }).hover();
+  await page.getByRole('button', { name: 'More options for New chat' }).click();
   page.once('dialog', (dialog) => dialog.accept('Renamed chat'));
-  await page.getByRole('button', { name: 'Rename New chat' }).click();
+  await page.getByRole('button', { name: 'Rename', exact: true }).click();
   await expect(page.getByRole('link', { name: 'Renamed chat' })).toBeVisible();
 
   const csrf = await page.request.post('/api/chats', {
@@ -182,10 +185,12 @@ test('OIDC login, persistent streamed chat, CSRF protection, and logout', async 
   expect(csrf.status()).toBe(403);
 
   await page.getByRole('link', { name: 'Renamed chat' }).hover();
+  await page.getByRole('button', { name: 'More options for Renamed chat' }).click();
   page.once('dialog', (dialog) => dialog.accept());
-  await page.getByRole('button', { name: 'Delete Renamed chat' }).click();
+  await page.getByRole('button', { name: 'Delete', exact: true }).click();
   await expect(page).toHaveURL('/');
 
+  await page.getByLabel('User menu').click();
   await page.getByRole('button', { name: 'Sign out' }).click();
   await expect(page).toHaveURL('/signin');
 });
