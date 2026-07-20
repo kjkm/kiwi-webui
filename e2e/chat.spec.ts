@@ -300,6 +300,8 @@ test('OIDC login, persistent streamed chat, CSRF protection, and logout', async 
   await expect(page.getByRole('link', { name: 'Save temporary' })).toBeVisible();
 
   await page.getByRole('button', { name: 'New Chat', exact: true }).click();
+  await expect(page).toHaveURL('/');
+  await expect(page.getByRole('button', { name: 'Temporary Chat' })).toBeVisible();
   await page.getByRole('button', { name: 'E2E Model' }).click();
   await page.getByRole('option', { name: /Alternate Model/ }).click();
 
