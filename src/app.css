@@ -145,40 +145,43 @@ button {
   width: 20px;
   height: 20px;
 }
-aside {
+.sidebar-stage {
+  position: relative;
   width: 260px;
+  height: 100dvh;
   flex: 0 0 260px;
+  transition:
+    width 200ms ease-in-out,
+    flex-basis 200ms ease-in-out;
+}
+.sidebar-collapsed .sidebar-stage {
+  width: 52px;
+  flex-basis: 52px;
+}
+aside {
+  position: absolute;
+  z-index: 1;
+  inset: 0 auto 0 0;
+  width: 260px;
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  clip-path: inset(0);
   color: var(--ow-gray-900);
   background: color-mix(in oklch, var(--ow-gray-50) 70%, white);
   font-size: 0.875rem;
   user-select: none;
   transition:
-    width 250ms cubic-bezier(0.33, 1, 0.68, 1),
-    flex-basis 250ms cubic-bezier(0.33, 1, 0.68, 1),
-    opacity 250ms cubic-bezier(0.33, 1, 0.68, 1),
+    clip-path 250ms cubic-bezier(0.33, 1, 0.68, 1),
     visibility 0s linear 0s;
 }
 aside.desktop-hidden {
-  display: flex;
-  width: 0;
-  flex-basis: 0;
-  opacity: 0;
+  clip-path: inset(0 100% 0 0);
   visibility: hidden;
   pointer-events: none;
   transition:
-    width 250ms cubic-bezier(0.33, 1, 0.68, 1),
-    flex-basis 250ms cubic-bezier(0.33, 1, 0.68, 1),
-    opacity 250ms cubic-bezier(0.33, 1, 0.68, 1),
+    clip-path 250ms cubic-bezier(0.33, 1, 0.68, 1),
     visibility 0s linear 250ms;
-}
-aside > .sidebar-heading,
-aside > .sidebar-scroll,
-aside > .sidebar-footer {
-  width: 260px;
-  flex-shrink: 0;
 }
 .sidebar-heading {
   position: relative;
@@ -434,14 +437,16 @@ aside > .sidebar-footer {
   background: var(--ow-gray-100);
 }
 .sidebar-rail {
-  width: 0;
-  flex: 0 0 0;
+  position: absolute;
+  z-index: 2;
+  inset: 0 auto 0 0;
+  width: 52px;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 4.5px;
   overflow: hidden;
-  padding: 7px 0;
+  padding: 7px 7px 7px 8px;
   border-right: 1px solid color-mix(in oklch, var(--ow-gray-50) 30%, transparent);
   color: var(--ow-gray-900);
   background: transparent;
@@ -449,25 +454,16 @@ aside > .sidebar-footer {
   visibility: hidden;
   pointer-events: none;
   transition:
-    width 200ms ease-in-out,
-    flex-basis 200ms ease-in-out,
-    padding 200ms ease-in-out,
-    opacity 150ms ease-in-out,
-    visibility 0s linear 200ms;
+    opacity 50ms linear 140ms,
+    visibility 0s linear 190ms;
 }
 .sidebar-collapsed .sidebar-rail {
-  width: 52px;
-  flex-basis: 52px;
-  padding: 7px 6px 7px 9px;
   opacity: 1;
   visibility: visible;
   pointer-events: auto;
   transition:
-    width 200ms ease-in-out,
-    flex-basis 200ms ease-in-out,
-    padding 200ms ease-in-out,
-    opacity 150ms ease-in-out,
-    visibility 0s linear 0s;
+    opacity 0s linear,
+    visibility 0s linear;
 }
 .sidebar-rail .sidebar-control {
   width: 36px;
@@ -885,10 +881,19 @@ aside > .sidebar-footer {
   .desktop-only {
     display: none !important;
   }
-  aside {
+  .sidebar-stage,
+  .sidebar-collapsed .sidebar-stage {
+    width: 0;
+    height: 0;
+    flex-basis: 0;
+  }
+  aside,
+  aside.desktop-hidden {
     position: fixed;
     z-index: 20;
     inset: 0 auto 0 0;
+    width: 260px;
+    clip-path: none;
     transform: translateX(-100%);
     transition: transform 0.2s ease;
     box-shadow: 12px 0 40px #0004;
@@ -934,6 +939,7 @@ aside > .sidebar-footer {
   }
 }
 @media (prefers-reduced-motion: reduce) {
+  .sidebar-stage,
   aside,
   aside.desktop-hidden,
   .sidebar-rail,

@@ -316,102 +316,105 @@
 <svelte:window onclick={() => (chatMenuId = null)} />
 
 <div class:sidebar-collapsed={!sidebarOpen} class="app-shell">
-  <nav class="sidebar-rail desktop-only" aria-label="Collapsed chat navigation">
-    <button class="rail-brand sidebar-control" aria-label="Open Sidebar" onclick={toggleSidebar}>
-      <img src="/kiwi.svg" alt="" aria-hidden="true" />
-      <span class="rail-sidebar-icon"><SidebarIcon /></span>
-    </button>
-    <button class="sidebar-control" aria-label="New Chat" onclick={createChat}>
-      <PencilSquare strokeWidth="2" />
-    </button>
-  </nav>
-
-  <aside class:desktop-hidden={!sidebarOpen} class:open={mobileNav} aria-label="Chat navigation">
-    <div class="sidebar-heading">
-      <a class="brand" href={resolve('/')}>
-        <img class="brand-logo" src="/kiwi.svg" alt="" aria-hidden="true" />
-        <span>{appName}</span>
-      </a>
-      <button
-        class="sidebar-control desktop-only"
-        aria-label="Close Sidebar"
-        onclick={toggleSidebar}
-      >
-        <SidebarIcon />
+  <div class="sidebar-stage">
+    <nav class="sidebar-rail desktop-only" aria-label="Collapsed chat navigation">
+      <button class="rail-brand sidebar-control" aria-label="Open Sidebar" onclick={toggleSidebar}>
+        <img src="/kiwi.svg" alt="" aria-hidden="true" />
+        <span class="rail-sidebar-icon"><SidebarIcon /></span>
       </button>
-      <button
-        class="sidebar-control mobile-only"
-        aria-label="Close Sidebar"
-        onclick={() => (mobileNav = false)}
-      >
-        <SidebarIcon />
+      <button class="sidebar-control" aria-label="New Chat" onclick={createChat}>
+        <PencilSquare strokeWidth="2" />
       </button>
-    </div>
+    </nav>
 
-    <div class="sidebar-scroll">
-      <div class="sidebar-primary-actions">
-        <button class="new-chat" aria-label="New Chat" onclick={createChat}>
-          <PencilSquare strokeWidth="2" />
-          <span>New Chat</span>
+    <aside class:desktop-hidden={!sidebarOpen} class:open={mobileNav} aria-label="Chat navigation">
+      <div class="sidebar-heading">
+        <a class="brand" href={resolve('/')}>
+          <img class="brand-logo" src="/kiwi.svg" alt="" aria-hidden="true" />
+          <span>{appName}</span>
+        </a>
+        <button
+          class="sidebar-control desktop-only"
+          aria-label="Close Sidebar"
+          onclick={toggleSidebar}
+        >
+          <SidebarIcon />
+        </button>
+        <button
+          class="sidebar-control mobile-only"
+          aria-label="Close Sidebar"
+          onclick={() => (mobileNav = false)}
+        >
+          <SidebarIcon />
         </button>
       </div>
 
-      <nav class="chat-list" aria-label="Conversations">
-        {#each chats as chat (chat.id)}
-          <div class:active={activeChatId === chat.id} class="chat-row">
-            <a href={resolve(`/c/${chat.id}`)} onclick={() => (mobileNav = false)}>{chat.title}</a>
-            <button
-              class="chat-menu-trigger"
-              class:visible={chatMenuId === chat.id}
-              aria-label={`More options for ${chat.title}`}
-              aria-expanded={chatMenuId === chat.id}
-              onclick={(event) => {
-                event.stopPropagation();
-                chatMenuId = chatMenuId === chat.id ? null : chat.id;
-              }}
-            >
-              <EllipsisHorizontal />
-            </button>
-            {#if chatMenuId === chat.id}
-              <div class="chat-menu">
-                <button onclick={() => renameChat(chat)}><Pencil /><span>Rename</span></button>
-                <button class="danger" onclick={() => deleteChat(chat)}
-                  ><GarbageBin /><span>Delete</span></button
-                >
-              </div>
-            {/if}
-          </div>
-        {/each}
-        {#if storageStatus === 'loading'}
-          <p class="sidebar-empty">Loading chats…</p>
-        {:else if storageStatus === 'error'}
-          <p class="sidebar-empty">Local storage unavailable</p>
-        {:else if chats.length === 0}
-          <p class="sidebar-empty">No conversations yet</p>
-        {/if}
-      </nav>
-    </div>
-
-    <div class="sidebar-footer">
-      <details class="account-menu">
-        <summary class="account-row" aria-label="User menu">
-          <span class="account-avatar"
-            >{(user.displayName ?? user.username).slice(0, 1).toUpperCase()}</span
-          >
-          <span class="account-name">{user.displayName ?? user.username}</span>
-          <ChevronUpDown />
-        </summary>
-        <div class="account-popover">
-          <div class="account-identity">
-            <strong>{user.displayName ?? user.username}</strong><span>@{user.username}</span>
-          </div>
-          <form method="POST" action={resolve('/auth/logout')}>
-            <button type="submit"><SignOut /><span>Sign out</span></button>
-          </form>
+      <div class="sidebar-scroll">
+        <div class="sidebar-primary-actions">
+          <button class="new-chat" aria-label="New Chat" onclick={createChat}>
+            <PencilSquare strokeWidth="2" />
+            <span>New Chat</span>
+          </button>
         </div>
-      </details>
-    </div>
-  </aside>
+
+        <nav class="chat-list" aria-label="Conversations">
+          {#each chats as chat (chat.id)}
+            <div class:active={activeChatId === chat.id} class="chat-row">
+              <a href={resolve(`/c/${chat.id}`)} onclick={() => (mobileNav = false)}>{chat.title}</a
+              >
+              <button
+                class="chat-menu-trigger"
+                class:visible={chatMenuId === chat.id}
+                aria-label={`More options for ${chat.title}`}
+                aria-expanded={chatMenuId === chat.id}
+                onclick={(event) => {
+                  event.stopPropagation();
+                  chatMenuId = chatMenuId === chat.id ? null : chat.id;
+                }}
+              >
+                <EllipsisHorizontal />
+              </button>
+              {#if chatMenuId === chat.id}
+                <div class="chat-menu">
+                  <button onclick={() => renameChat(chat)}><Pencil /><span>Rename</span></button>
+                  <button class="danger" onclick={() => deleteChat(chat)}
+                    ><GarbageBin /><span>Delete</span></button
+                  >
+                </div>
+              {/if}
+            </div>
+          {/each}
+          {#if storageStatus === 'loading'}
+            <p class="sidebar-empty">Loading chats…</p>
+          {:else if storageStatus === 'error'}
+            <p class="sidebar-empty">Local storage unavailable</p>
+          {:else if chats.length === 0}
+            <p class="sidebar-empty">No conversations yet</p>
+          {/if}
+        </nav>
+      </div>
+
+      <div class="sidebar-footer">
+        <details class="account-menu">
+          <summary class="account-row" aria-label="User menu">
+            <span class="account-avatar"
+              >{(user.displayName ?? user.username).slice(0, 1).toUpperCase()}</span
+            >
+            <span class="account-name">{user.displayName ?? user.username}</span>
+            <ChevronUpDown />
+          </summary>
+          <div class="account-popover">
+            <div class="account-identity">
+              <strong>{user.displayName ?? user.username}</strong><span>@{user.username}</span>
+            </div>
+            <form method="POST" action={resolve('/auth/logout')}>
+              <button type="submit"><SignOut /><span>Sign out</span></button>
+            </form>
+          </div>
+        </details>
+      </div>
+    </aside>
+  </div>
 
   {#if mobileNav}<button
       class="nav-scrim"
