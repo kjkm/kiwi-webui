@@ -153,14 +153,18 @@ test('OIDC login, persistent streamed chat, CSRF protection, and logout', async 
   await expect(page.getByRole('button', { name: 'Open Sidebar' })).toBeVisible();
   await page.getByRole('button', { name: 'Open Sidebar' }).click();
 
-  await page.getByRole('button', { name: 'New Chat' }).click();
-  await expect(page).toHaveURL(/\/c\//);
+  const centeredComposer = page.locator('.new-chat-composer');
+  await expect(centeredComposer).toBeVisible();
+  const composerBox = await centeredComposer.boundingBox();
+  expect(composerBox?.y).toBeLessThan(550);
+
   await page.getByRole('button', { name: 'E2E Model' }).click();
   await page.getByRole('option', { name: /Alternate Model/ }).click();
 
   const composer = page.getByRole('textbox', { name: 'Message' });
   await composer.fill('Say hello');
   await composer.press('Enter');
+  await expect(page).toHaveURL(/\/c\//);
   await expect(page.getByText('Hello world.')).toBeVisible();
   await expect.poll(() => completionModel).toBe('alternate-model');
   await expect
