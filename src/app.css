@@ -260,7 +260,6 @@ aside {
   align-items: center;
   gap: 10px;
   padding: 0 20px;
-  border-bottom: 1px solid #eee;
 }
 .model-selector {
   position: relative;
@@ -626,9 +625,6 @@ aside {
   }
   .composer-wrap {
     background: linear-gradient(transparent, #212121 26%);
-  }
-  .conversation-header {
-    border-color: #333;
   }
   .model-trigger:hover,
   .model-trigger[aria-expanded='true'] {
