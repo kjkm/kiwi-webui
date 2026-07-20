@@ -12,6 +12,7 @@
   import PencilSquare from './icons/PencilSquare.svelte';
   import SidebarIcon from './icons/Sidebar.svelte';
   import SignOut from './icons/SignOut.svelte';
+  import StopCircle from './icons/StopCircle.svelte';
   import type { ModelInfo } from '$lib/models';
   import type { ChatSummary, Message } from '$lib/chat';
   import { LocalChatRepository } from '$lib/client/chats';
@@ -295,7 +296,9 @@
       disabled={busy}
     ></textarea>
     {#if busy}
-      <button class="send-button stop" aria-label="Stop generation" onclick={stop}>■</button>
+      <button class="send-button stop" aria-label="Stop generation" onclick={stop}>
+        <StopCircle />
+      </button>
     {:else}
       <button
         class="send-button"

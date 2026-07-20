@@ -808,7 +808,11 @@ aside.desktop-hidden {
   background: #e6e6e6;
 }
 .send-button.stop {
-  font-size: 0.7rem;
+  color: var(--ow-gray-800);
+  background: #fff;
+}
+.send-button.stop:hover {
+  background: var(--ow-gray-100);
 }
 .disclaimer {
   margin: 7px 0 0;
@@ -1007,6 +1011,13 @@ aside.desktop-hidden {
   .send-button:disabled {
     color: var(--ow-gray-900);
     background: var(--ow-gray-700);
+  }
+  .send-button.stop {
+    color: #fff;
+    background: var(--ow-gray-700);
+  }
+  .send-button.stop:hover {
+    background: var(--ow-gray-800);
   }
   .markdown code {
     background: var(--ow-gray-800);
