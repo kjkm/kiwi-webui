@@ -1,7 +1,7 @@
 ## ADDED Requirements
 
 ### Requirement: Open WebUI temporary-chat fidelity
-The system SHALL use Open WebUI's temporary-chat iconography and visual treatments for the mode toggle, active state, empty-state indicator, temporary composer, and save action.
+The system SHALL use Open WebUI's temporary-chat iconography and visual treatments for the mode toggle, active state, temporary composer, and save action, with an uncluttered Kiwi-specific temporary placeholder.
 
 #### Scenario: View the normal new-chat header
 - **WHEN** no saved chat is active and temporary mode is disabled
@@ -9,7 +9,7 @@ The system SHALL use Open WebUI's temporary-chat iconography and visual treatmen
 
 #### Scenario: Enable temporary mode
 - **WHEN** the user activates the temporary-chat control
-- **THEN** the control uses the corresponding checked icon, the empty state displays a temporary-chat notice, and the composer uses a dashed border treatment
+- **THEN** the control uses the corresponding checked icon, the empty state replaces the normal logo and greeting with a wireframe Kiwi mark and `Incognito` heading without an additional eye icon or temporary-chat label, and the composer uses a dashed border treatment
 
 #### Scenario: Continue a temporary conversation
 - **WHEN** temporary mode contains at least one message
@@ -26,7 +26,7 @@ The system SHALL visibly distinguish empty, temporary, loading, streaming, compl
 
 #### Scenario: Start a temporary chat
 - **WHEN** a user enables temporary mode on the empty new-chat route
-- **THEN** the centered placeholder clearly states that the chat will not appear in history and its messages will not be saved
+- **THEN** the centered placeholder shows the wireframe Kiwi mark and `Incognito` heading without adding an eye icon or temporary-chat label
 
 #### Scenario: Send from the normal new-chat route
 - **WHEN** a user submits the centered composer before a normal chat exists

@@ -2,14 +2,14 @@
 
 Kiwi currently creates an IndexedDB chat record on the first submission from `/`, appends the user message before generation, and appends the assistant message after a complete stream. The backend generation endpoint is already stateless. Temporary chat therefore requires a client-side persistence branch rather than a server or database change.
 
-Open WebUI exposes temporary mode from the new-chat header with dotted-chat icons, identifies the mode in the placeholder, uses a dashed composer border, and replaces the toggle with a save action once a temporary conversation exists. Kiwi should preserve that interaction while interpreting "temporary" as component-memory-only because its normal persistence layer is already browser-local.
+Open WebUI exposes temporary mode from the new-chat header with dotted-chat icons, uses a dashed composer border, and replaces the toggle with a save action once a temporary conversation exists. Kiwi follows that interaction while using an `Incognito` heading and wireframe Kiwi mark as its uncluttered temporary-mode indicator, and interprets "temporary" as component-memory-only because its normal persistence layer is already browser-local.
 
 ## Goals / Non-Goals
 
 **Goals:**
 - Keep temporary titles and messages entirely out of IndexedDB unless the user explicitly saves the conversation.
 - Reuse the existing bounded stateless generation request and streaming behavior.
-- Match Open WebUI's temporary toggle, active icon, placeholder indicator, dashed composer treatment, and save action.
+- Match Open WebUI's temporary toggle, active icon, dashed composer treatment, and save action while using Kiwi's wireframe `Incognito` placeholder state.
 - Make transitions between temporary, saved, and normal new-chat states explicit and testable.
 
 **Non-Goals:**
@@ -45,7 +45,7 @@ Sequential calls to `create` and `append` were rejected because a failed interme
 
 ### Reuse Open WebUI visual language
 
-Kiwi will copy the relevant Open WebUI SVG paths for dotted-chat inactive/active controls, save-chat, and eye-slash indication. The control sits at the right of the conversation header, the empty state states that messages are not saved, and temporary composers use the dashed border treatment. Controls remain keyboard accessible with explicit labels and active state.
+Kiwi will copy the relevant Open WebUI SVG paths for dotted-chat inactive/active controls and save-chat. The control sits at the right of the conversation header, the empty state replaces the normal greeting and filled logo with an `Incognito` heading and wireframe Kiwi mark, and temporary composers use the dashed border treatment. Controls remain keyboard accessible with explicit labels and active state.
 
 ## Risks / Trade-offs
 

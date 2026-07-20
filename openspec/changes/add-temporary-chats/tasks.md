@@ -13,9 +13,9 @@
 
 ## 3. Open WebUI Interface Fidelity
 
-- [x] 3.1 Add Open WebUI dotted-chat, checked dotted-chat, save-chat, and eye-slash SVG icon components using the reference paths and sizing
+- [x] 3.1 Add Open WebUI dotted-chat, checked dotted-chat, and save-chat SVG icon components using the reference paths and sizing
 - [x] 3.2 Add the accessible new-chat header toggle and active temporary-chat state
-- [x] 3.3 Add the centered temporary notice, explanatory text, and dashed composer treatment
+- [x] 3.3 Add the centered wireframe `Incognito` placeholder state and dashed composer treatment
 - [x] 3.4 Replace the toggle with a save action for non-empty temporary conversations and disable saving during generation
 - [x] 3.5 Verify temporary controls and indications remain responsive and keyboard accessible in light and dark themes
 
