@@ -1,0 +1,9 @@
+node_modules
+build
+.svelte-kit
+vendor
+src/lib/server/oidc-core
+openspec
+.pi
+.windsurf
+package-lock.json
