@@ -7,6 +7,7 @@ A minimal, OIDC-only chat interface for one OpenAI-compatible provider. It uses 
 - Authentik/OpenID Connect login with PKCE and just-in-time accounts
 - Hashed, server-side application sessions
 - Browser-local, user-partitioned chats with linear message history
+- Disposable temporary chats that remain only in page memory unless explicitly saved
 - Searchable provider model selection and streaming OpenAI-compatible responses
 - Responsive interface with sanitized Markdown and code blocks
 
@@ -61,9 +62,11 @@ The provider must implement `POST /chat/completions` with standard OpenAI SSE st
 
 ## Conversation storage and privacy
 
-Chat titles and user and assistant messages are stored in IndexedDB in the browser profile, partitioned by the authenticated OIDC user ID. They remain after logout for that same user, but they do not synchronize across browsers or devices and are permanently lost if site data is cleared. No backup, export, or import facility is currently provided.
+Normal chat titles and user and assistant messages are stored in IndexedDB in the browser profile, partitioned by the authenticated OIDC user ID. They remain after logout for that same user, but they do not synchronize across browsers or devices and are permanently lost if site data is cleared. No backup, export, or import facility is currently provided.
 
-The backend receives bounded conversation history transiently for each completion and forwards it to the configured model provider. It does not persist chat content or include it in application logs. This is a no-server-retention guarantee, not end-to-end encryption; browser extensions, same-origin scripts, developer tools, and the configured provider remain part of the trust boundary.
+Temporary chats remain only in the current page's memory: they do not appear in history or write titles or messages to IndexedDB. Reloading, navigating away, starting another chat, or signing out permanently discards an unsaved temporary chat. The explicit save action converts its complete transcript into a normal IndexedDB chat.
+
+The backend receives bounded conversation history transiently for every completion, including temporary chats, and forwards it to the configured model provider. It does not persist chat content or include it in application logs. Temporary mode is therefore a local no-retention feature, not provider privacy or end-to-end encryption; browser extensions, same-origin scripts, developer tools, and the configured provider remain part of the trust boundary.
 
 ## Production
 
