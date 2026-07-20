@@ -316,17 +316,15 @@
 <svelte:window onclick={() => (chatMenuId = null)} />
 
 <div class:sidebar-collapsed={!sidebarOpen} class="app-shell">
-  {#if !sidebarOpen}
-    <nav class="sidebar-rail desktop-only" aria-label="Collapsed chat navigation">
-      <button class="rail-brand sidebar-control" aria-label="Open Sidebar" onclick={toggleSidebar}>
-        <img src="/kiwi.svg" alt="" aria-hidden="true" />
-        <span class="rail-sidebar-icon"><SidebarIcon /></span>
-      </button>
-      <button class="sidebar-control" aria-label="New Chat" onclick={createChat}>
-        <PencilSquare strokeWidth="2" />
-      </button>
-    </nav>
-  {/if}
+  <nav class="sidebar-rail desktop-only" aria-label="Collapsed chat navigation">
+    <button class="rail-brand sidebar-control" aria-label="Open Sidebar" onclick={toggleSidebar}>
+      <img src="/kiwi.svg" alt="" aria-hidden="true" />
+      <span class="rail-sidebar-icon"><SidebarIcon /></span>
+    </button>
+    <button class="sidebar-control" aria-label="New Chat" onclick={createChat}>
+      <PencilSquare strokeWidth="2" />
+    </button>
+  </nav>
 
   <aside class:desktop-hidden={!sidebarOpen} class:open={mobileNav} aria-label="Chat navigation">
     <div class="sidebar-heading">
