@@ -348,7 +348,11 @@ aside.desktop-hidden {
   color: #dc2626;
 }
 .sidebar-empty {
-  padding: 12px 11px;
+  min-height: 32px;
+  display: flex;
+  align-items: center;
+  margin: 0;
+  padding: 0 11px;
   color: var(--ow-gray-600);
   font-size: 0.75rem;
 }
