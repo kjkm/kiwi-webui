@@ -150,6 +150,7 @@ test('OIDC login, persistent streamed chat, CSRF protection, and logout', async 
   await page.getByRole('link', { name: 'Continue with SSO' }).click();
   await expect(page).toHaveURL('/');
 
+  const emptyConversationPosition = await page.getByText('No conversations yet').boundingBox();
   const expandedLogo = await page.locator('.brand-logo').boundingBox();
   const expandedNewChat = await page.locator('.new-chat > svg').boundingBox();
   await page.getByRole('button', { name: 'Close Sidebar' }).click();
@@ -300,6 +301,8 @@ test('OIDC login, persistent streamed chat, CSRF protection, and logout', async 
   await page.getByRole('button', { name: 'Save temporary chat' }).click();
   await expect(page).toHaveURL(/\/c\//);
   await expect(page.getByRole('link', { name: 'Save temporary' })).toBeVisible();
+  const firstConversationPosition = await page.locator('.chat-row').first().boundingBox();
+  expect(firstConversationPosition?.y).toBe(emptyConversationPosition?.y);
 
   await page.getByRole('button', { name: 'New Chat', exact: true }).click();
   await expect(page).toHaveURL('/');
