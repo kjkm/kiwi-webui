@@ -147,6 +147,16 @@ test.afterAll(async () => {
 
 test('OIDC login, persistent streamed chat, CSRF protection, and logout', async ({ page }) => {
   await page.goto('/signin');
+  await expect(page.locator('.signin-card')).toBeVisible();
+  const signinLogo = await page.locator('.signin-card .brand-mark').boundingBox();
+  expect(signinLogo).toMatchObject({ width: 48, height: 48 });
+  await expect
+    .poll(() =>
+      page
+        .getByRole('link', { name: 'Continue with SSO' })
+        .evaluate((element) => getComputedStyle(element).display)
+    )
+    .toBe('inline-flex');
   await page.getByRole('link', { name: 'Continue with SSO' }).click();
   await expect(page).toHaveURL('/');
 
