@@ -11,7 +11,6 @@
     <img class="brand-mark" src="/kiwi.svg" alt="" aria-hidden="true" />
     <p class="eyebrow">{data.appName}</p>
     <h1 id="signin-title">Welcome back</h1>
-    <p class="muted">Sign in with your organization account to continue.</p>
     {#if data.failed}
       <div class="notice error" role="alert">Sign-in failed. Please try again.</div>
     {/if}
