@@ -297,6 +297,7 @@
     }
 
     await tick();
+    resizeComposer();
     composerElement?.focus();
 
     controller = new AbortController();
@@ -379,6 +380,16 @@
     busy = false;
   }
 
+  function resizeComposer(event?: Event): void {
+    const textarea = (event?.currentTarget as HTMLTextAreaElement | null) ?? composerElement;
+    if (!textarea) return;
+    textarea.style.height = 'auto';
+    const maximumHeight = Number.parseFloat(getComputedStyle(textarea).maxHeight);
+    const contentHeight = textarea.scrollHeight;
+    textarea.style.height = `${Math.min(contentHeight, maximumHeight)}px`;
+    textarea.style.overflowY = contentHeight > maximumHeight ? 'auto' : 'hidden';
+  }
+
   function composerKeydown(event: KeyboardEvent): void {
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault();
@@ -394,6 +405,7 @@
       id="prompt"
       bind:this={composerElement}
       bind:value={prompt}
+      oninput={resizeComposer}
       onkeydown={composerKeydown}
       rows="1"
       maxlength="32000"

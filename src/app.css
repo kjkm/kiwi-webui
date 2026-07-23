@@ -871,8 +871,9 @@ aside.desktop-hidden {
 }
 .composer textarea {
   min-height: 36px;
-  max-height: 160px;
+  max-height: 123px;
   flex: 1;
+  overflow-y: hidden;
   resize: none;
   border: 0;
   outline: 0;
