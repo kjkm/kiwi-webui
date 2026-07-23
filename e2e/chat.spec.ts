@@ -243,6 +243,21 @@ test('OIDC login, persistent streamed chat, CSRF protection, and logout', async 
   const sendButtonBox = await page.getByRole('button', { name: 'Send message' }).boundingBox();
   expect(sendButtonBox).toMatchObject({ width: 32, height: 32 });
 
+  const entryBar = page.locator('.new-chat-composer .composer');
+  const initialEntryBar = await entryBar.boundingBox();
+  const growingComposer = page.getByRole('textbox', { name: 'Message' });
+  await growingComposer.fill(Array.from({ length: 20 }, (_, index) => `Line ${index}`).join('\n'));
+  const expandedEntryBar = await entryBar.boundingBox();
+  expect(expandedEntryBar!.height).toBeGreaterThan(initialEntryBar!.height);
+  expect(expandedEntryBar!.height).toBeLessThanOrEqual(initialEntryBar!.height * 2.5);
+  await expect
+    .poll(() => growingComposer.evaluate((element) => getComputedStyle(element).overflowY))
+    .toBe('auto');
+  await growingComposer.fill('');
+  await expect
+    .poll(() => entryBar.evaluate((element) => element.getBoundingClientRect().height))
+    .toBe(initialEntryBar!.height);
+
   const temporaryToggle = page.getByRole('button', { name: 'Temporary Chat' });
   await page.setViewportSize({ width: 700, height: 800 });
   await page.emulateMedia({ colorScheme: 'dark' });
