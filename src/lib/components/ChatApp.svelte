@@ -391,7 +391,9 @@
   }
 
   function composerKeydown(event: KeyboardEvent): void {
-    if (event.key === 'Enter' && !event.shiftKey) {
+    if (event.key !== 'Enter') return;
+    const mobile = window.matchMedia('(max-width: 760px)').matches;
+    if (!mobile && !event.shiftKey) {
       event.preventDefault();
       void send();
     }
