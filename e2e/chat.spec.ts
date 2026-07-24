@@ -257,10 +257,19 @@ test('OIDC login, persistent streamed chat, CSRF protection, and logout', async 
   await expect
     .poll(() => entryBar.evaluate((element) => element.getBoundingClientRect().height))
     .toBe(initialEntryBar!.height);
+  await growingComposer.fill('Desktop line');
+  await growingComposer.press('Shift+Enter');
+  await expect(growingComposer).toHaveValue('Desktop line\n');
+  await growingComposer.fill('');
 
   const temporaryToggle = page.getByRole('button', { name: 'Temporary Chat' });
   await page.setViewportSize({ width: 700, height: 800 });
   await page.emulateMedia({ colorScheme: 'dark' });
+  await growingComposer.fill('Mobile line');
+  await growingComposer.press('Enter');
+  await expect(growingComposer).toHaveValue('Mobile line\n');
+  expect(new URL(page.url()).pathname).toBe('/');
+  await growingComposer.fill('');
   await expect(temporaryToggle).toBeVisible();
   await temporaryToggle.focus();
   await expect(temporaryToggle).toBeFocused();
