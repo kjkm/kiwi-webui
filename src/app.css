@@ -963,6 +963,9 @@ aside.desktop-hidden {
     display: inline-grid;
     place-items: center;
   }
+  .chat-row > a {
+    -webkit-touch-callout: none;
+  }
   .nav-scrim {
     display: block;
     position: fixed;
