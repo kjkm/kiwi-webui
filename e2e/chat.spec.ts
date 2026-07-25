@@ -352,6 +352,25 @@ test('OIDC login, persistent streamed chat, CSRF protection, and logout', async 
   const firstConversationPosition = await page.locator('.chat-row').first().boundingBox();
   expect(firstConversationPosition?.y).toBe(emptyConversationPosition?.y);
 
+  const savedConversationUrl = page.url();
+  await page.setViewportSize({ width: 700, height: 800 });
+  await page.getByRole('button', { name: 'Open Sidebar' }).click();
+  await page.waitForTimeout(220);
+  const mobileChatRow = page.locator('.chat-row').filter({ hasText: 'Save temporary' });
+  const mobileChatRowBox = await mobileChatRow.boundingBox();
+  await page.mouse.move(
+    mobileChatRowBox!.x + mobileChatRowBox!.width / 2,
+    mobileChatRowBox!.y + mobileChatRowBox!.height / 2
+  );
+  await page.mouse.down();
+  await page.waitForTimeout(550);
+  await page.mouse.up();
+  await expect(page.getByRole('button', { name: 'Rename', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Delete', exact: true })).toBeVisible();
+  expect(page.url()).toBe(savedConversationUrl);
+  await page.locator('.nav-scrim').click({ position: { x: 650, y: 400 } });
+  await page.setViewportSize({ width: 1280, height: 720 });
+
   await page.getByRole('button', { name: 'New Chat', exact: true }).click();
   await expect(page).toHaveURL('/');
   await expect(page.getByRole('button', { name: 'Temporary Chat' })).toBeVisible();
