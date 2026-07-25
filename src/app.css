@@ -963,8 +963,8 @@ aside.desktop-hidden {
     display: inline-grid;
     place-items: center;
   }
-  .chat-row > a {
-    -webkit-touch-callout: none;
+  .chat-menu-trigger {
+    display: flex;
   }
   .nav-scrim {
     display: block;

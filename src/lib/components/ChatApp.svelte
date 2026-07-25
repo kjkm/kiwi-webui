@@ -57,9 +57,6 @@
   let temporaryMode = $state(false);
   let temporaryConversationId = $state<string | null>(null);
   let composerElement: HTMLTextAreaElement | null = null;
-  let longPressTimer: ReturnType<typeof setTimeout> | null = null;
-  let longPressOrigin: { x: number; y: number } | null = null;
-  let suppressChatNavigation = false;
 
   $effect(() => {
     const id = requestedChatId;
@@ -209,58 +206,7 @@
     }
   }
 
-  function mobileViewport(): boolean {
-    return window.matchMedia('(max-width: 760px)').matches;
-  }
-
-  function cancelChatLongPress(): void {
-    if (longPressTimer) clearTimeout(longPressTimer);
-    longPressTimer = null;
-    longPressOrigin = null;
-  }
-
-  function startChatLongPress(event: PointerEvent, chatId: string): void {
-    if (!mobileViewport()) return;
-    cancelChatLongPress();
-    suppressChatNavigation = false;
-    longPressOrigin = { x: event.clientX, y: event.clientY };
-    longPressTimer = setTimeout(() => {
-      longPressTimer = null;
-      suppressChatNavigation = true;
-      chatMenuId = chatId;
-    }, 500);
-  }
-
-  function moveChatLongPress(event: PointerEvent): void {
-    if (!longPressOrigin) return;
-    if (Math.hypot(event.clientX - longPressOrigin.x, event.clientY - longPressOrigin.y) > 10) {
-      cancelChatLongPress();
-    }
-  }
-
-  function openMobileChatMenu(event: MouseEvent, chatId: string): void {
-    if (!mobileViewport()) return;
-    event.preventDefault();
-    event.stopPropagation();
-    cancelChatLongPress();
-    suppressChatNavigation = true;
-    chatMenuId = chatId;
-  }
-
-  function selectChat(event: MouseEvent): void {
-    cancelChatLongPress();
-    if (suppressChatNavigation) {
-      event.preventDefault();
-      event.stopPropagation();
-      suppressChatNavigation = false;
-      return;
-    }
-    discardTemporaryChat();
-    mobileNav = false;
-  }
-
   async function renameChat(chat: ChatSummary): Promise<void> {
-    suppressChatNavigation = false;
     chatMenuId = null;
     const title = window.prompt('Rename chat', chat.title)?.trim();
     if (!title || title === chat.title || !repository) return;
@@ -272,7 +218,6 @@
   }
 
   async function deleteChat(chat: ChatSummary): Promise<void> {
-    suppressChatNavigation = false;
     chatMenuId = null;
     if (!window.confirm(`Delete “${chat.title}”?`) || !repository) return;
     try {
@@ -535,12 +480,10 @@
             <div class:active={activeChatId === chat.id} class="chat-row">
               <a
                 href={resolve(`/c/${chat.id}`)}
-                onclick={selectChat}
-                onpointerdown={(event) => startChatLongPress(event, chat.id)}
-                onpointermove={moveChatLongPress}
-                onpointerup={cancelChatLongPress}
-                onpointercancel={cancelChatLongPress}
-                oncontextmenu={(event) => openMobileChatMenu(event, chat.id)}>{chat.title}</a
+                onclick={() => {
+                  discardTemporaryChat();
+                  mobileNav = false;
+                }}>{chat.title}</a
               >
               <button
                 class="chat-menu-trigger"
