@@ -356,15 +356,11 @@ test('OIDC login, persistent streamed chat, CSRF protection, and logout', async 
   await page.setViewportSize({ width: 700, height: 800 });
   await page.getByRole('button', { name: 'Open Sidebar' }).click();
   await page.waitForTimeout(220);
-  const mobileChatRow = page.locator('.chat-row').filter({ hasText: 'Save temporary' });
-  const mobileChatRowBox = await mobileChatRow.boundingBox();
-  await page.mouse.move(
-    mobileChatRowBox!.x + mobileChatRowBox!.width / 2,
-    mobileChatRowBox!.y + mobileChatRowBox!.height / 2
-  );
-  await page.mouse.down();
-  await page.waitForTimeout(550);
-  await page.mouse.up();
+  const mobileChatActions = page.getByRole('button', {
+    name: 'More options for Save temporary'
+  });
+  await expect(mobileChatActions).toBeVisible();
+  await mobileChatActions.click();
   await expect(page.getByRole('button', { name: 'Rename', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Delete', exact: true })).toBeVisible();
   expect(page.url()).toBe(savedConversationUrl);
