@@ -1,16 +1,22 @@
 import { createServer, type Server } from 'node:http';
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { resetConfigForTests } from '../src/lib/server/config';
 import { closeDatabase, getDatabase } from '../src/lib/server/db/database';
 import { UserRepository } from '../src/lib/server/db/users';
+import { resetOllamaLoadsForTests } from '../src/lib/server/llm/ollama';
 import {
   POST as generate,
   _resetActiveConversationsForTests
 } from '../src/routes/api/generate/+server';
 
 let provider: Server;
+let providerOrigin = '';
 let mode: 'success' | 'error' | 'slow' = 'success';
+let ollamaMode: 'resident' | 'unloaded' | 'probe-error' | 'preload-error' = 'resident';
 let requests = 0;
+let psRequests = 0;
+let preloadRequests = 0;
+let preloadBody: unknown;
 let alice: ReturnType<UserRepository['create']>;
 let bob: ReturnType<UserRepository['create']>;
 const conversationId = '00000000-0000-4000-8000-000000000001';
@@ -32,28 +38,56 @@ function event(
   } as never;
 }
 
+async function readRequestBody(request: import('node:http').IncomingMessage): Promise<string> {
+  return await new Promise((resolve, reject) => {
+    let body = '';
+    request.on('data', (chunk) => (body += chunk));
+    request.on('end', () => resolve(body));
+    request.on('error', reject);
+  });
+}
+
 beforeAll(async () => {
   process.env.DATABASE_PATH = ':memory:';
   process.env.PUBLIC_BASE_URL = 'http://localhost';
   process.env.OPENAI_API_KEY = 'test-key';
   process.env.OPENAI_MODEL = 'test-model';
-  provider = createServer((_request, response) => {
-    requests++;
-    if (mode === 'error') {
-      response.writeHead(500).end('failed');
-      return;
-    }
-    response.writeHead(200, { 'content-type': 'text/event-stream' });
-    response.flushHeaders();
-    const finish = () =>
-      response.end('data: {"choices":[{"delta":{"content":"answer"}}]}\n\ndata: [DONE]\n\n');
-    if (mode === 'slow') setTimeout(finish, 100);
-    else finish();
+  provider = createServer((request, response) => {
+    void (async () => {
+      const url = new URL(request.url ?? '/', providerOrigin);
+      if (url.pathname === '/api/ps') {
+        psRequests++;
+        if (ollamaMode === 'probe-error') return response.writeHead(503).end();
+        const models = ollamaMode === 'resident' ? [{ name: 'test-model:latest' }] : [];
+        response.writeHead(200, { 'content-type': 'application/json' });
+        return response.end(JSON.stringify({ models }));
+      }
+      if (url.pathname === '/api/chat') {
+        preloadRequests++;
+        preloadBody = JSON.parse(await readRequestBody(request));
+        if (ollamaMode === 'preload-error') return response.writeHead(500).end();
+        response.writeHead(200, { 'content-type': 'application/json' });
+        return response.end(JSON.stringify({ done: true }));
+      }
+
+      requests++;
+      if (mode === 'error') {
+        response.writeHead(500).end('failed');
+        return;
+      }
+      response.writeHead(200, { 'content-type': 'text/event-stream' });
+      response.flushHeaders();
+      const finish = () =>
+        response.end('data: {"choices":[{"delta":{"content":"answer"}}]}\n\ndata: [DONE]\n\n');
+      if (mode === 'slow') setTimeout(finish, 100);
+      else finish();
+    })();
   });
   await new Promise<void>((resolve) => provider.listen(0, '127.0.0.1', resolve));
   const address = provider.address();
   if (!address || typeof address === 'string') throw new Error('provider did not bind');
-  process.env.OPENAI_BASE_URL = `http://127.0.0.1:${address.port}/v1`;
+  providerOrigin = `http://127.0.0.1:${address.port}`;
+  process.env.OPENAI_BASE_URL = `${providerOrigin}/v1`;
   resetConfigForTests();
 });
 
@@ -69,15 +103,26 @@ beforeEach(() => {
   alice = users.create({ username: 'alice' });
   bob = users.create({ username: 'bob' });
   mode = 'success';
+  ollamaMode = 'resident';
   requests = 0;
+  psRequests = 0;
+  preloadRequests = 0;
+  preloadBody = undefined;
+  delete process.env.OLLAMA_BASE_URL;
+  resetConfigForTests();
+  resetOllamaLoadsForTests();
   _resetActiveConversationsForTests();
+  vi.restoreAllMocks();
 });
 
 describe('stateless generation route', () => {
   it('streams a completed turn without persisting conversation content', async () => {
     const response = await generate(event(alice));
     expect(response.status).toBe(200);
-    expect(await response.text()).toContain('answer');
+    const stream = await response.text();
+    expect(stream).toContain('"status":"generating"');
+    expect(stream).toContain('answer');
+    expect(psRequests).toBe(0);
     const tables = getDatabase()
       .prepare("SELECT name FROM sqlite_master WHERE type = 'table'")
       .all()
@@ -92,11 +137,66 @@ describe('stateless generation route', () => {
     expect(requests).toBe(0);
   });
 
-  it('returns provider failure without writing content', async () => {
+  it('streams provider startup failures without logging conversation content', async () => {
     mode = 'error';
-    const response = await generate(event(alice));
-    expect(response.status).toBe(502);
+    const log = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const response = await generate(
+      event(alice, conversationId, [{ role: 'user', content: 'secret' }])
+    );
+    expect(response.status).toBe(200);
+    expect(await response.text()).toContain('The model provider is unavailable');
     expect(requests).toBe(1);
+    expect(JSON.stringify(log.mock.calls)).not.toContain('secret');
+  });
+
+  it('skips preload for a resident Ollama model', async () => {
+    process.env.OLLAMA_BASE_URL = `${providerOrigin}/`;
+    resetConfigForTests();
+    const response = await generate(event(alice));
+    const stream = await response.text();
+    expect(psRequests).toBe(1);
+    expect(preloadRequests).toBe(0);
+    expect(stream).not.toContain('loading_model');
+    expect(stream).toContain('"status":"generating"');
+  });
+
+  it('reports and completes an unloaded Ollama model preload before inference', async () => {
+    process.env.OLLAMA_BASE_URL = providerOrigin;
+    resetConfigForTests();
+    ollamaMode = 'unloaded';
+    const response = await generate(event(alice));
+    const stream = await response.text();
+    expect(psRequests).toBe(1);
+    expect(preloadRequests).toBe(1);
+    expect(preloadBody).toEqual({ model: 'test-model', messages: [], stream: false });
+    expect(stream.indexOf('loading_model')).toBeLessThan(stream.indexOf('"status":"generating"'));
+    expect(stream.indexOf('"status":"generating"')).toBeLessThan(stream.indexOf('answer'));
+  });
+
+  it('fails open when the residency probe is unavailable', async () => {
+    process.env.OLLAMA_BASE_URL = providerOrigin;
+    resetConfigForTests();
+    ollamaMode = 'probe-error';
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const response = await generate(event(alice));
+    const stream = await response.text();
+    expect(stream).not.toContain('loading_model');
+    expect(stream).toContain('answer');
+    expect(preloadRequests).toBe(0);
+  });
+
+  it('does not start inference when a required preload fails and releases concurrency', async () => {
+    process.env.OLLAMA_BASE_URL = providerOrigin;
+    resetConfigForTests();
+    ollamaMode = 'preload-error';
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const response = await generate(event(alice));
+    expect(await response.text()).toContain('The model provider is unavailable');
+    expect(requests).toBe(0);
+
+    ollamaMode = 'resident';
+    const retry = await generate(event(alice));
+    expect(await retry.text()).toContain('answer');
   });
 
   it('serializes generation per user and conversation and releases cancellation', async () => {

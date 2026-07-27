@@ -2,6 +2,7 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { parseGenerationRequest } from '$lib/server/llm/generation';
 import { resolveProviderModel } from '$lib/server/llm/models';
+import { ensureOllamaModelReady } from '$lib/server/llm/ollama';
 import { consumeOpenAiStream, requestCompletion } from '$lib/server/llm/openai';
 
 const activeConversations = new Set<string>();
@@ -28,20 +29,25 @@ export const POST: RequestHandler = async ({ locals, request }) => {
   const abort = new AbortController();
   request.signal.addEventListener('abort', () => abort.abort(), { once: true });
 
-  let upstream: Response;
-  try {
-    upstream = await requestCompletion(body.messages, abort.signal, selectedModel);
-  } catch {
-    activeConversations.delete(activeKey);
-    console.error('Completion request failed');
-    return json({ error: 'The model provider is unavailable' }, { status: 502 });
-  }
-
   let cancelled = false;
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
       let assistant = '';
+      let inferenceStarted = false;
       try {
+        await ensureOllamaModelReady(selectedModel, {
+          signal: abort.signal,
+          onLoading: () => {
+            if (!cancelled) controller.enqueue(event('status', { status: 'loading_model' }));
+          }
+        });
+        if (cancelled) return;
+
+        controller.enqueue(event('status', { status: 'generating' }));
+        const upstream = await requestCompletion(body.messages, abort.signal, selectedModel);
+        if (cancelled) return;
+        inferenceStarted = true;
+
         await consumeOpenAiStream(upstream.body!, (text) => {
           assistant += text;
           controller.enqueue(event('delta', { content: text }));
@@ -49,13 +55,21 @@ export const POST: RequestHandler = async ({ locals, request }) => {
         if (!assistant.trim()) throw new Error('Provider returned an empty response');
         controller.enqueue(event('done'));
       } catch {
-        if (!cancelled) {
-          console.error('Completion stream failed');
-          controller.enqueue(event('error', { error: 'The response was interrupted' }));
+        if (!cancelled && !abort.signal.aborted) {
+          console.error(
+            inferenceStarted ? 'Completion stream failed' : 'Completion request failed'
+          );
+          controller.enqueue(
+            event('error', {
+              error: inferenceStarted
+                ? 'The response was interrupted'
+                : 'The model provider is unavailable'
+            })
+          );
         }
       } finally {
         activeConversations.delete(activeKey);
-        controller.close();
+        if (!cancelled) controller.close();
       }
     },
     cancel() {
