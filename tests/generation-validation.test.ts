@@ -6,8 +6,10 @@ import {
 } from '../src/lib/server/llm/generation';
 
 const conversationId = '00000000-0000-4000-8000-000000000001';
+const generationId = '00000000-0000-4000-8000-000000000002';
 
 const request = (messages: unknown, model: unknown = 'model') => ({
+  generationId,
   conversationId,
   model,
   messages
@@ -23,10 +25,13 @@ describe('generation request validation', () => {
           { role: 'user', content: 'again' }
         ])
       )
-    ).toMatchObject({ conversationId, model: 'model' });
+    ).toMatchObject({ generationId, conversationId, model: 'model' });
   });
 
   it('rejects invalid IDs, roles, content, and terminal assistant messages', () => {
+    expect(
+      parseGenerationRequest({ ...request([{ role: 'user', content: 'x' }]), generationId: 'x' })
+    ).toBeNull();
     expect(
       parseGenerationRequest({ ...request([{ role: 'user', content: 'x' }]), conversationId: 'x' })
     ).toBeNull();
