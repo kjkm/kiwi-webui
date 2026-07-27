@@ -76,7 +76,7 @@
     void loadModels();
     const resume = () => {
       if (!busy || !activeGenerationId) return;
-      if (generationStatus === 'reconnecting') wakeReconnect?.();
+      if (generationStatus === 'reconnecting' && wakeReconnect) wakeReconnect();
       else controller?.abort();
     };
     const foreground = () => {
@@ -314,13 +314,18 @@
     busy = false;
   }
 
-  async function consumeGenerationStream(response: Response, generationId: string): Promise<void> {
+  async function consumeGenerationStream(
+    response: Response,
+    generationId: string,
+    onActivity: () => void
+  ): Promise<void> {
     if (!response.body) throw new Error('Generation stream is unavailable');
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let buffer = '';
     while (activeGenerationId === generationId) {
       const { value, done } = await reader.read();
+      onActivity();
       buffer += decoder.decode(value, { stream: !done });
       const events = buffer.split(/\r?\n\r?\n/);
       buffer = events.pop() ?? '';
@@ -421,7 +426,14 @@
 
     try {
       while (activeGenerationId === generationId) {
-        controller = new AbortController();
+        const attemptController = new AbortController();
+        controller = attemptController;
+        let watchdog: ReturnType<typeof setTimeout> | null = null;
+        const refreshWatchdog = () => {
+          if (watchdog) clearTimeout(watchdog);
+          watchdog = setTimeout(() => attemptController.abort(), 30_000);
+        };
+        refreshWatchdog();
         try {
           const response = await fetch(
             created ? `/api/generate/${generationId}?after=${generationCursor}` : '/api/generate',
@@ -436,9 +448,10 @@
                     model: selectedModel,
                     messages: history
                   }),
-              signal: controller.signal
+              signal: attemptController.signal
             }
           );
+          refreshWatchdog();
           if (!response.ok) {
             const body = (await response.json().catch(() => ({}))) as { error?: string };
             if (created && response.status === 404) {
@@ -448,7 +461,7 @@
           }
           created = true;
           if (generationStatus === 'reconnecting') generationStatus = null;
-          await consumeGenerationStream(response, generationId);
+          await consumeGenerationStream(response, generationId, refreshWatchdog);
           break;
         } catch (error) {
           if (activeGenerationId !== generationId) return;
@@ -458,6 +471,8 @@
           }
           generationStatus = 'reconnecting';
           await waitForReconnect(attempt++);
+        } finally {
+          if (watchdog) clearTimeout(watchdog);
         }
       }
 
