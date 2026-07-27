@@ -19,6 +19,7 @@
   import type { ModelInfo } from '$lib/models';
   import type { ChatSummary, Message } from '$lib/chat';
   import { LocalChatRepository } from '$lib/client/chats';
+  import { parseGenerationEvent } from '$lib/generation-events';
   import type { User } from '$lib/server/db/types';
 
   let {
@@ -44,10 +45,14 @@
   let prompt = $state('');
   let streaming = $state('');
   let busy = $state(false);
-  let generationStatus = $state<'loading_model' | 'generating' | null>(null);
+  let generationStatus = $state<'loading_model' | 'generating' | 'reconnecting' | null>(null);
   let failure = $state('');
   let mobileNav = $state(false);
   let controller: AbortController | null = null;
+  let activeGenerationId: string | null = null;
+  let generationCursor = 0;
+  let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  let wakeReconnect: (() => void) | null = null;
   const initialModel = untrack(() => defaultModel);
   let modelOptions = $state<ModelInfo[]>(
     initialModel ? [{ id: initialModel, name: initialModel, ownedBy: null }] : []
@@ -69,6 +74,24 @@
     sidebarOpen = localStorage.getItem('kiwi_sidebar') !== 'closed';
     void hydrateLocalChats();
     void loadModels();
+    const resume = () => {
+      if (!busy || !activeGenerationId) return;
+      if (generationStatus === 'reconnecting') wakeReconnect?.();
+      else controller?.abort();
+    };
+    const foreground = () => {
+      if (document.visibilityState === 'visible') resume();
+    };
+    window.addEventListener('online', resume);
+    window.addEventListener('offline', resume);
+    document.addEventListener('visibilitychange', foreground);
+    return () => {
+      window.removeEventListener('online', resume);
+      window.removeEventListener('offline', resume);
+      document.removeEventListener('visibilitychange', foreground);
+      controller?.abort();
+      clearReconnectWait();
+    };
   });
 
   async function hydrateLocalChats(): Promise<void> {
@@ -96,8 +119,7 @@
 
   async function loadRequestedChat(chatId: string | null): Promise<void> {
     if (!repository) return;
-    controller?.abort();
-    controller = null;
+    cancelActiveGeneration();
     streaming = '';
     generationStatus = null;
     busy = false;
@@ -159,8 +181,7 @@
     if (temporaryMode) {
       discardTemporaryChat();
     } else {
-      controller?.abort();
-      controller = null;
+      cancelActiveGeneration();
       activeChatId = null;
       loadedRequestedId = null;
       messages = [];
@@ -183,8 +204,7 @@
 
   function discardTemporaryChat(): void {
     if (!temporaryMode) return;
-    controller?.abort();
-    controller = null;
+    cancelActiveGeneration();
     temporaryMode = false;
     temporaryConversationId = null;
     messages = [];
@@ -229,6 +249,7 @@
   async function deleteChat(chat: ChatSummary): Promise<void> {
     chatMenuId = null;
     if (!window.confirm(`Delete “${chat.title}”?`) || !repository) return;
+    if (activeChatId === chat.id) cancelActiveGeneration();
     try {
       if (!(await repository.delete(user.id, chat.id))) return;
       await refreshChats();
@@ -238,20 +259,95 @@
     }
   }
 
-  function parseEvent(raw: string): {
-    type: 'delta' | 'done' | 'error' | 'status';
-    content?: string;
-    error?: string;
-    status?: 'loading_model' | 'generating';
-  } | null {
-    const line = raw.split(/\r?\n/).find((part) => part.startsWith('data:'));
-    if (!line) return null;
-    return JSON.parse(line.slice(5).trim()) as {
-      type: 'delta' | 'done' | 'error' | 'status';
-      content?: string;
-      error?: string;
-      status?: 'loading_model' | 'generating';
-    };
+  class TerminalGenerationError extends Error {}
+
+  function clearReconnectWait(): void {
+    if (reconnectTimer) clearTimeout(reconnectTimer);
+    reconnectTimer = null;
+    wakeReconnect = null;
+  }
+
+  function waitForReconnect(attempt: number): Promise<void> {
+    clearReconnectWait();
+    return new Promise((resolve) => {
+      const finish = () => {
+        clearReconnectWait();
+        resolve();
+      };
+      wakeReconnect = finish;
+      reconnectTimer = setTimeout(finish, Math.min(300 * 2 ** attempt, 5000));
+    });
+  }
+
+  function removeGeneration(generationId: string): Promise<Response | null> {
+    return fetch(`/api/generate/${generationId}`, { method: 'DELETE', keepalive: true }).catch(
+      () => null
+    );
+  }
+
+  function cancelActiveGeneration(): void {
+    const generationId = activeGenerationId;
+    activeGenerationId = null;
+    generationCursor = 0;
+    controller?.abort();
+    controller = null;
+    clearReconnectWait();
+    if (generationId) {
+      void removeGeneration(generationId);
+      setTimeout(() => void removeGeneration(generationId), 500);
+    }
+  }
+
+  function leaveActiveConversation(): void {
+    cancelActiveGeneration();
+    discardTemporaryChat();
+    mobileNav = false;
+  }
+
+  function finishGeneration(generationId: string): void {
+    if (activeGenerationId !== generationId) return;
+    activeGenerationId = null;
+    generationCursor = 0;
+    controller = null;
+    clearReconnectWait();
+    generationStatus = null;
+    busy = false;
+  }
+
+  async function consumeGenerationStream(response: Response, generationId: string): Promise<void> {
+    if (!response.body) throw new Error('Generation stream is unavailable');
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    while (activeGenerationId === generationId) {
+      const { value, done } = await reader.read();
+      buffer += decoder.decode(value, { stream: !done });
+      const events = buffer.split(/\r?\n\r?\n/);
+      buffer = events.pop() ?? '';
+      if (done && buffer) events.push(buffer);
+      for (const item of events) {
+        const event = parseGenerationEvent(item);
+        if (!event) {
+          if (item.includes('data:')) throw new Error('Generation event was invalid');
+          continue;
+        }
+        if (event.sequence <= generationCursor) continue;
+        if (event.sequence !== generationCursor + 1)
+          throw new Error('Generation events were interrupted');
+        generationCursor = event.sequence;
+        if (event.data.type === 'status') generationStatus = event.data.status;
+        if (event.data.type === 'delta') {
+          generationStatus = null;
+          streaming += event.data.content;
+        }
+        if (event.data.type === 'done') {
+          generationStatus = null;
+          return;
+        }
+        if (event.data.type === 'error') throw new TerminalGenerationError(event.data.error);
+      }
+      if (done) throw new Error('Generation stream disconnected');
+    }
   }
 
   async function send(): Promise<void> {
@@ -312,54 +408,61 @@
     resizeComposer();
     composerElement?.focus();
 
-    controller = new AbortController();
+    const generationId = crypto.randomUUID();
+    activeGenerationId = generationId;
+    generationCursor = 0;
     const history = messages.map(({ role, content: messageContent }) => ({
       role,
       content: messageContent
     }));
+    const startedAt = Date.now();
+    let created = false;
+    let attempt = 0;
 
     try {
-      const response = await fetch('/api/generate', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ conversationId: chatId, model: selectedModel, messages: history }),
-        signal: controller.signal
-      });
-      if (!response.ok || !response.body) {
-        const body = (await response.json().catch(() => ({}))) as { error?: string };
-        throw new Error(body.error ?? 'Unable to generate a response.');
-      }
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = '';
-      let completed = false;
-      while (true) {
-        const { value, done } = await reader.read();
-        buffer += decoder.decode(value, { stream: !done });
-        const events = buffer.split(/\r?\n\r?\n/);
-        buffer = events.pop() ?? '';
-        if (done && buffer) events.push(buffer);
-        for (const item of events) {
-          const value = parseEvent(item);
-          if (
-            value?.type === 'status' &&
-            (value.status === 'loading_model' || value.status === 'generating')
-          )
-            generationStatus = value.status;
-          if (value?.type === 'delta') {
-            generationStatus = null;
-            streaming += value.content ?? '';
+      while (activeGenerationId === generationId) {
+        controller = new AbortController();
+        try {
+          const response = await fetch(
+            created ? `/api/generate/${generationId}?after=${generationCursor}` : '/api/generate',
+            {
+              method: created ? 'GET' : 'POST',
+              headers: created ? undefined : { 'content-type': 'application/json' },
+              body: created
+                ? undefined
+                : JSON.stringify({
+                    generationId,
+                    conversationId: chatId,
+                    model: selectedModel,
+                    messages: history
+                  }),
+              signal: controller.signal
+            }
+          );
+          if (!response.ok) {
+            const body = (await response.json().catch(() => ({}))) as { error?: string };
+            if (created && response.status === 404) {
+              throw new TerminalGenerationError('The response is no longer available.');
+            }
+            throw new TerminalGenerationError(body.error ?? 'Unable to generate a response.');
           }
-          if (value?.type === 'done') {
-            generationStatus = null;
-            completed = true;
+          created = true;
+          if (generationStatus === 'reconnecting') generationStatus = null;
+          await consumeGenerationStream(response, generationId);
+          break;
+        } catch (error) {
+          if (activeGenerationId !== generationId) return;
+          if (error instanceof TerminalGenerationError) throw error;
+          if (Date.now() - startedAt >= 10 * 60 * 1000) {
+            throw new TerminalGenerationError('The response is no longer available.');
           }
-          if (value?.type === 'error')
-            throw new Error(value.error ?? 'The response was interrupted.');
+          generationStatus = 'reconnecting';
+          await waitForReconnect(attempt++);
         }
-        if (done) break;
       }
-      if (!completed || !streaming.trim()) throw new Error('The response was interrupted.');
+
+      if (activeGenerationId !== generationId) return;
+      if (!streaming.trim()) throw new TerminalGenerationError('The response was interrupted.');
       const completedContent = streaming;
       if (isTemporary) {
         if (!temporaryMode || temporaryConversationId !== chatId) return;
@@ -376,31 +479,30 @@
         ];
         streaming = '';
       } else {
-        try {
-          const assistant = await repository.append(user.id, chatId, 'assistant', completedContent);
-          if (!assistant) throw new Error('Unable to save the response');
-          messages = [...messages, assistant];
-          streaming = '';
-          await refreshChats();
-        } catch {
-          failStorage('Unable to save the response in local browser storage.');
-        }
+        const assistant = await repository.append(user.id, chatId, 'assistant', completedContent);
+        if (!assistant) throw new Error('Unable to save the response');
+        messages = [...messages, assistant];
+        streaming = '';
+        await refreshChats();
       }
+      await removeGeneration(generationId);
+      finishGeneration(generationId);
     } catch (error) {
+      if (activeGenerationId !== generationId) return;
       streaming = '';
       generationStatus = null;
-      if ((error as Error).name !== 'AbortError' && (!isTemporary || temporaryMode)) {
-        failure = (error as Error).message;
+      if (!isTemporary || temporaryMode) {
+        failure =
+          error instanceof TerminalGenerationError
+            ? error.message
+            : 'Unable to save the response in local browser storage.';
       }
-    } finally {
-      generationStatus = null;
-      busy = false;
-      controller = null;
+      finishGeneration(generationId);
     }
   }
 
   function stop(): void {
-    controller?.abort();
+    cancelActiveGeneration();
     streaming = '';
     generationStatus = null;
     busy = false;
@@ -473,7 +575,7 @@
 
     <aside class:desktop-hidden={!sidebarOpen} class:open={mobileNav} aria-label="Chat navigation">
       <div class="sidebar-heading">
-        <a class="brand" href={resolve('/')} onclick={discardTemporaryChat}>
+        <a class="brand" href={resolve('/')} onclick={leaveActiveConversation}>
           <img class="brand-logo" src="/kiwi.svg" alt="" aria-hidden="true" />
           <span>{appName}</span>
         </a>
@@ -504,13 +606,7 @@
         <nav class="chat-list" aria-label="Conversations">
           {#each chats as chat (chat.id)}
             <div class:active={activeChatId === chat.id} class="chat-row">
-              <a
-                href={resolve(`/c/${chat.id}`)}
-                onclick={() => {
-                  discardTemporaryChat();
-                  mobileNav = false;
-                }}>{chat.title}</a
-              >
+              <a href={resolve(`/c/${chat.id}`)} onclick={leaveActiveConversation}>{chat.title}</a>
               <button
                 class="chat-menu-trigger"
                 class:visible={chatMenuId === chat.id}
@@ -556,7 +652,7 @@
             <div class="account-identity">
               <strong>{user.displayName ?? user.username}</strong><span>@{user.username}</span>
             </div>
-            <form method="POST" action={resolve('/auth/logout')} onsubmit={discardTemporaryChat}>
+            <form method="POST" action={resolve('/auth/logout')} onsubmit={leaveActiveConversation}>
               <button type="submit"><SignOut /><span>Sign out</span></button>
             </form>
           </div>
@@ -664,6 +760,14 @@
           <article class="message assistant streaming">
             <div class="message-label">Kiwi</div>
             <Markdown content={streaming} /><span class="cursor">▋</span>
+            {#if generationStatus === 'reconnecting'}
+              <p class="generation-reconnecting" role="status">Reconnecting…</p>
+            {/if}
+          </article>
+        {:else if busy && generationStatus === 'reconnecting'}
+          <article class="message assistant generation-reconnecting" role="status">
+            <div class="message-label">Kiwi</div>
+            <p>Reconnecting…</p>
           </article>
         {:else if busy && generationStatus === 'loading_model'}
           <article class="message assistant loading-model" role="status">
