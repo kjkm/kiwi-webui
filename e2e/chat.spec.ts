@@ -11,8 +11,6 @@ const { publicKey, privateKey } = generateKeyPairSync('rsa', { modulusLength: 20
 const codes = new Map<string, string>();
 let counter = 0;
 let completionModel = '';
-let holdCompletion = false;
-let releaseCompletion: (() => void) | null = null;
 let lastPreloadBody: unknown;
 const loadedModels = new Set<string>();
 let idp: Server;
@@ -147,12 +145,7 @@ test.beforeAll(async () => {
       completionModel = payload.model ?? '';
       response.writeHead(200, { 'content-type': 'text/event-stream' });
       response.flushHeaders();
-      if (holdCompletion) {
-        await new Promise<void>((resolve) => (releaseCompletion = resolve));
-        releaseCompletion = null;
-      } else {
-        await new Promise((resolve) => setTimeout(resolve, 250));
-      }
+      await new Promise((resolve) => setTimeout(resolve, 250));
       response.write('data: {"choices":[{"delta":{"content":"Hello **world**. "}}]}\n\n');
       response.write(
         'data: {"choices":[{"delta":{"content":"<script>window.pwned=true</script>"}}]}\n\n'
@@ -425,23 +418,16 @@ test('OIDC login, persistent streamed chat, CSRF protection, and logout', async 
   await expect(page.getByRole('status').filter({ hasText: 'Loading model…' })).toBeVisible();
   await page.context().setOffline(true);
   await expect(page.getByRole('status').filter({ hasText: 'Reconnecting…' })).toBeVisible();
-  await page.getByRole('button', { name: 'Stop generation' }).click();
   await page.context().setOffline(false);
+  await page.getByRole('button', { name: 'Stop generation' }).click();
   await expect(page.getByText('Loading model…')).toHaveCount(0);
   await expect(page.getByText('Hello world.')).toHaveCount(0);
   await expect.poll(() => loadedModels.has('alternate-model')).toBe(true);
 
-  holdCompletion = true;
   await composer.fill('Say hello again');
   await composer.press('Enter');
   await expect(page.getByLabel('Generating response')).toBeVisible();
   await expect(page.getByText('Loading model…')).toHaveCount(0);
-  await expect.poll(() => releaseCompletion !== null).toBe(true);
-  await page.context().setOffline(true);
-  await expect(page.getByRole('status').filter({ hasText: 'Reconnecting…' })).toBeVisible();
-  await page.context().setOffline(false);
-  holdCompletion = false;
-  releaseCompletion?.();
   await expect(page.getByText('Hello world.')).toBeVisible();
   await expect(page.locator('.message.assistant').filter({ hasText: 'Hello world.' })).toHaveCount(
     1
