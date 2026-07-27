@@ -11,10 +11,12 @@ describe('configuration', () => {
       OIDC_CLIENT_SECRET: 'secret',
       OPENAI_BASE_URL: 'https://llm.example.com/v1/',
       OPENAI_API_KEY: 'key',
-      OPENAI_MODEL: 'model'
+      OPENAI_MODEL: 'model',
+      OLLAMA_BASE_URL: 'http://ollama:11434/'
     });
     expect(config.publicBaseUrl).toBe('https://chat.example.com');
     expect(config.openai.baseUrl).toBe('https://llm.example.com/v1');
+    expect(config.ollama.baseUrl).toBe('http://ollama:11434');
     expect(config.sessionTtlSeconds).toBe(60);
     expect(missingOidcConfig(config)).toEqual([]);
     expect(missingProviderConfig(config)).toEqual([]);
@@ -24,10 +26,14 @@ describe('configuration', () => {
     const config = parseConfig({});
     expect(missingOidcConfig(config)).toContain('OIDC_ISSUER');
     expect(missingProviderConfig(config)).toContain('OPENAI_API_KEY');
+    expect(config.ollama.baseUrl).toBe('');
   });
 
   it('rejects malformed values', () => {
     expect(() => parseConfig({ PUBLIC_BASE_URL: 'relative' })).toThrow(/absolute URL/);
     expect(() => parseConfig({ SESSION_TTL_SECONDS: '0' })).toThrow(/positive integer/);
+    expect(() => parseConfig({ OLLAMA_BASE_URL: '/ollama' })).toThrow(
+      /OLLAMA_BASE_URL must be an absolute URL/
+    );
   });
 });

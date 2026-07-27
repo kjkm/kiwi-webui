@@ -14,6 +14,9 @@ export interface AppConfig {
     apiKey: string;
     model: string;
   };
+  ollama: {
+    baseUrl: string;
+  };
 }
 
 function positiveInteger(value: string | undefined, fallback: number, name: string): number {
@@ -25,6 +28,15 @@ function positiveInteger(value: string | undefined, fallback: number, name: stri
 
 function boolean(value: string | undefined): boolean {
   return value?.toLowerCase() === 'true';
+}
+
+function optionalAbsoluteUrl(value: string | undefined, name: string): string {
+  if (!value) return '';
+  try {
+    return new URL(value).href.replace(/\/$/, '');
+  } catch {
+    throw new Error(`${name} must be an absolute URL`);
+  }
 }
 
 export function parseConfig(env: Record<string, string | undefined>): AppConfig {
@@ -54,6 +66,9 @@ export function parseConfig(env: Record<string, string | undefined>): AppConfig 
       baseUrl: (env.OPENAI_BASE_URL ?? '').replace(/\/$/, ''),
       apiKey: env.OPENAI_API_KEY ?? '',
       model: env.OPENAI_MODEL ?? ''
+    },
+    ollama: {
+      baseUrl: optionalAbsoluteUrl(env.OLLAMA_BASE_URL, 'OLLAMA_BASE_URL')
     }
   };
 }

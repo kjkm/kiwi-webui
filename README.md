@@ -60,6 +60,8 @@ Set:
 
 The provider must implement `POST /chat/completions` with standard OpenAI SSE streaming and a final `data: [DONE]` event. When `GET /models` is available, its models appear in the searchable header selector; otherwise the configured default remains available. Credentials and endpoint configuration are never sent to the browser.
 
+For an Ollama-backed provider, optionally set `OLLAMA_BASE_URL` to the native Ollama origin reachable from the Kiwi container, without `/v1` (for example, `http://ollama:11434`). Kiwi then checks `/api/ps` before inference and preloads a non-resident model through an empty `/api/chat` request so the UI can show “Loading model…”. Native requests reuse the server-side `OPENAI_API_KEY` as a Bearer credential; direct local Ollama accepts the request without requiring authentication, while reverse proxies must route `/api/ps` and `/api/chat` and accept that credential. Leave `OLLAMA_BASE_URL` unset for non-Ollama providers or when native routes are unavailable.
+
 ## Conversation storage and privacy
 
 Normal chat titles and user and assistant messages are stored in IndexedDB in the browser profile, partitioned by the authenticated OIDC user ID. They remain after logout for that same user, but they do not synchronize across browsers or devices and are permanently lost if site data is cleared. No backup, export, or import facility is currently provided.
