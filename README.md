@@ -70,6 +70,14 @@ Temporary chats remain only in the current page's memory: they do not appear in 
 
 The backend receives bounded conversation history transiently for every completion, including temporary chats, and forwards it to the configured model provider. It does not persist chat content or include it in application logs. Temporary mode is therefore a local no-retention feature, not provider privacy or end-to-end encryption; browser extensions, same-origin scripts, developer tools, and the configured provider remain part of the trust boundary.
 
+## Resumable generation
+
+Each accepted completion runs as an ephemeral, user-scoped in-memory job. If a mobile browser suspends or loses its response stream while switching applications, inference continues on the server and the intact page automatically reconnects with an event cursor. Missed model-loading statuses and response deltas are replayed in order, and the assistant message is still saved only by the browser after complete delivery. Stop, intentional conversation navigation, temporary-chat discard, deletion, and sign-out best-effort cancel the active server job.
+
+Jobs are never written to SQLite. They are limited to four active jobs and twenty retained jobs per user, 1,000 retained jobs per process, ten minutes of runtime, ten minutes of terminal replay retention, 32,000 response characters, and 128,000 bytes of retained event payloads. Completed jobs are removed earlier after the browser acknowledges local handling. Prompt and response content remains temporarily present in server memory during those bounds but is excluded from application logs.
+
+Resumption requires the same running Kiwi process and the original intact page. A backend restart, deployment, provider-side failure, page reload, tab closure, or retention expiry cannot be resumed. A normal submitted user message remains in IndexedDB after failed recovery; temporary chat state remains page-memory-only and is discarded on reload. In-memory jobs are local to one process, reinforcing the production requirement to run a single Kiwi application instance.
+
 ## Production
 
 `PUBLIC_BASE_URL` and SvelteKit's `ORIGIN` must both be the externally visible origin, for example `https://chat.example.com`. Put the service behind TLS and persist `/app/data`.
