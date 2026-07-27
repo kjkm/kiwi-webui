@@ -19,7 +19,8 @@ export default defineConfig({
       OIDC_ALLOW_INSECURE_HTTP: 'true',
       OPENAI_BASE_URL: 'http://127.0.0.1:43211/v1',
       OPENAI_API_KEY: 'e2e-key',
-      OPENAI_MODEL: 'e2e-model'
+      OPENAI_MODEL: 'e2e-model',
+      OLLAMA_BASE_URL: 'http://127.0.0.1:43211'
     }
   }
 });

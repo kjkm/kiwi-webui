@@ -11,6 +11,8 @@ const { publicKey, privateKey } = generateKeyPairSync('rsa', { modulusLength: 20
 const codes = new Map<string, string>();
 let counter = 0;
 let completionModel = '';
+let lastPreloadBody: unknown;
+const loadedModels = new Set<string>();
 let idp: Server;
 let llm: Server;
 
@@ -127,9 +129,23 @@ test.beforeAll(async () => {
           ]
         });
       }
+      if (request.method === 'GET' && url.pathname === '/api/ps') {
+        return json(response, 200, {
+          models: [...loadedModels].map((model) => ({ name: `${model}:latest` }))
+        });
+      }
+      if (request.method === 'POST' && url.pathname === '/api/chat') {
+        const payload = JSON.parse(await readBody(request)) as { model: string };
+        lastPreloadBody = payload;
+        await new Promise((resolve) => setTimeout(resolve, 200));
+        loadedModels.add(payload.model);
+        return json(response, 200, { done: true });
+      }
       const payload = JSON.parse(await readBody(request)) as { model?: string };
       completionModel = payload.model ?? '';
       response.writeHead(200, { 'content-type': 'text/event-stream' });
+      response.flushHeaders();
+      await new Promise((resolve) => setTimeout(resolve, 80));
       response.write('data: {"choices":[{"delta":{"content":"Hello **world**. "}}]}\n\n');
       response.write(
         'data: {"choices":[{"delta":{"content":"<script>window.pwned=true</script>"}}]}\n\n'
@@ -296,7 +312,16 @@ test('OIDC login, persistent streamed chat, CSRF protection, and logout', async 
   const temporaryComposer = page.getByRole('textbox', { name: 'Message' });
   await temporaryComposer.fill('Do not retain');
   await temporaryComposer.press('Enter');
+  await expect(page.getByRole('status').filter({ hasText: 'Loading model…' })).toBeVisible();
+  await expect
+    .poll(() => lastPreloadBody)
+    .toEqual({
+      model: 'e2e-model',
+      messages: [],
+      stream: false
+    });
   await expect(page.getByText('Hello world.')).toBeVisible();
+  await expect(page.getByText('Loading model…')).toHaveCount(0);
   await expect(temporaryComposer).toBeFocused();
   expect(new URL(page.url()).pathname).toBe('/');
   await expect(page.getByRole('button', { name: 'Save temporary chat' })).toBeVisible();
@@ -338,6 +363,8 @@ test('OIDC login, persistent streamed chat, CSRF protection, and logout', async 
   await page.getByRole('button', { name: 'Temporary Chat' }).click();
   await page.getByRole('textbox', { name: 'Message' }).fill('Discard on navigation');
   await page.getByRole('textbox', { name: 'Message' }).press('Enter');
+  await expect(page.getByLabel('Generating response')).toBeVisible();
+  await expect(page.getByText('Loading model…')).toHaveCount(0);
   await expect(page.getByText('Discard on navigation')).toBeVisible();
   await page.locator('.brand').click();
   await expect(page.getByText('Discard on navigation')).toHaveCount(0);
@@ -377,6 +404,16 @@ test('OIDC login, persistent streamed chat, CSRF protection, and logout', async 
   await composer.fill('Say hello');
   await composer.press('Enter');
   await expect(page).toHaveURL(/\/c\//);
+  await expect(page.getByRole('status').filter({ hasText: 'Loading model…' })).toBeVisible();
+  await page.getByRole('button', { name: 'Stop generation' }).click();
+  await expect(page.getByText('Loading model…')).toHaveCount(0);
+  await expect(page.getByText('Hello world.')).toHaveCount(0);
+  await expect.poll(() => loadedModels.has('alternate-model')).toBe(true);
+
+  await composer.fill('Say hello again');
+  await composer.press('Enter');
+  await expect(page.getByLabel('Generating response')).toBeVisible();
+  await expect(page.getByText('Loading model…')).toHaveCount(0);
   await expect(page.getByText('Hello world.')).toBeVisible();
   await expect(composer).toBeFocused();
   await expect.poll(() => completionModel).toBe('alternate-model');
@@ -395,7 +432,7 @@ test('OIDC login, persistent streamed chat, CSRF protection, and logout', async 
   expect(page.url()).toBe(conversationUrl);
 
   await page.reload();
-  await expect(page.getByText('Say hello')).toBeVisible();
+  await expect(page.getByText('Say hello', { exact: true })).toBeVisible();
   await expect(page.getByText('Follow up')).toBeVisible();
   await expect(page.locator('.message.assistant').filter({ hasText: 'Hello world.' })).toHaveCount(
     2
