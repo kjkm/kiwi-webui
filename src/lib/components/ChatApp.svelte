@@ -44,6 +44,7 @@
   let prompt = $state('');
   let streaming = $state('');
   let busy = $state(false);
+  let generationStatus = $state<'loading_model' | 'generating' | null>(null);
   let failure = $state('');
   let mobileNav = $state(false);
   let controller: AbortController | null = null;
@@ -95,6 +96,11 @@
 
   async function loadRequestedChat(chatId: string | null): Promise<void> {
     if (!repository) return;
+    controller?.abort();
+    controller = null;
+    streaming = '';
+    generationStatus = null;
+    busy = false;
     if (chatId && temporaryMode) discardTemporaryChat();
     loadedRequestedId = chatId;
     activeChatId = chatId;
@@ -119,6 +125,7 @@
   function failStorage(message: string): void {
     storageStatus = 'error';
     storageError = message;
+    generationStatus = null;
     busy = false;
   }
 
@@ -158,6 +165,7 @@
       loadedRequestedId = null;
       messages = [];
       streaming = '';
+      generationStatus = null;
       prompt = '';
       failure = '';
       missingChat = false;
@@ -181,6 +189,7 @@
     temporaryConversationId = null;
     messages = [];
     streaming = '';
+    generationStatus = null;
     prompt = '';
     failure = '';
     busy = false;
@@ -230,16 +239,18 @@
   }
 
   function parseEvent(raw: string): {
-    type: 'delta' | 'done' | 'error';
+    type: 'delta' | 'done' | 'error' | 'status';
     content?: string;
     error?: string;
+    status?: 'loading_model' | 'generating';
   } | null {
     const line = raw.split(/\r?\n/).find((part) => part.startsWith('data:'));
     if (!line) return null;
     return JSON.parse(line.slice(5).trim()) as {
-      type: 'delta' | 'done' | 'error';
+      type: 'delta' | 'done' | 'error' | 'status';
       content?: string;
       error?: string;
+      status?: 'loading_model' | 'generating';
     };
   }
 
@@ -248,6 +259,7 @@
     if (!content || busy || !repository || storageStatus !== 'ready') return;
 
     busy = true;
+    generationStatus = null;
     const isTemporary = temporaryMode;
     let chatId = isTemporary ? temporaryConversationId : activeChatId;
     if (isTemporary) {
@@ -329,8 +341,19 @@
         if (done && buffer) events.push(buffer);
         for (const item of events) {
           const value = parseEvent(item);
-          if (value?.type === 'delta') streaming += value.content ?? '';
-          if (value?.type === 'done') completed = true;
+          if (
+            value?.type === 'status' &&
+            (value.status === 'loading_model' || value.status === 'generating')
+          )
+            generationStatus = value.status;
+          if (value?.type === 'delta') {
+            generationStatus = null;
+            streaming += value.content ?? '';
+          }
+          if (value?.type === 'done') {
+            generationStatus = null;
+            completed = true;
+          }
           if (value?.type === 'error')
             throw new Error(value.error ?? 'The response was interrupted.');
         }
@@ -365,10 +388,12 @@
       }
     } catch (error) {
       streaming = '';
+      generationStatus = null;
       if ((error as Error).name !== 'AbortError' && (!isTemporary || temporaryMode)) {
         failure = (error as Error).message;
       }
     } finally {
+      generationStatus = null;
       busy = false;
       controller = null;
     }
@@ -377,6 +402,7 @@
   function stop(): void {
     controller?.abort();
     streaming = '';
+    generationStatus = null;
     busy = false;
   }
 
@@ -639,8 +665,13 @@
             <div class="message-label">Kiwi</div>
             <Markdown content={streaming} /><span class="cursor">▋</span>
           </article>
+        {:else if busy && generationStatus === 'loading_model'}
+          <article class="message assistant loading-model" role="status">
+            <div class="message-label">Kiwi</div>
+            <p>Loading model…</p>
+          </article>
         {:else if busy}
-          <article class="message assistant thinking">
+          <article class="message assistant thinking" aria-label="Generating response">
             <div class="message-label">Kiwi</div>
             <span></span><span></span><span></span>
           </article>
