@@ -110,7 +110,7 @@ export class GenerationJob {
     if (this.state === 'running') this.forceTerminal({ type: 'error', error: message }, 'failed');
   }
 
-  subscribe(after: number): ReadableStream<Uint8Array> {
+  subscribe(after: number, follow = true): ReadableStream<Uint8Array> {
     const encoder = new TextEncoder();
     let subscriber: Subscriber | null = null;
     return new ReadableStream<Uint8Array>({
@@ -119,7 +119,7 @@ export class GenerationJob {
           if (event.sequence > after)
             controller.enqueue(encoder.encode(formatGenerationEvent(event)));
         }
-        if (this.state !== 'running') {
+        if (this.state !== 'running' || !follow) {
           controller.close();
           return;
         }
@@ -332,11 +332,16 @@ export class GenerationJobRegistry {
   }
 }
 
-export function generationJobStreamResponse(job: GenerationJob, after: number): Response {
-  return new Response(job.subscribe(after), {
+export function generationJobStreamResponse(
+  job: GenerationJob,
+  after: number,
+  follow = true
+): Response {
+  return new Response(job.subscribe(after, follow), {
     headers: {
       'content-type': 'text/event-stream; charset=utf-8',
       'cache-control': 'no-cache, no-transform',
+      'x-accel-buffering': 'no',
       connection: 'keep-alive'
     }
   });

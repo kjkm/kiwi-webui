@@ -436,7 +436,9 @@
         refreshWatchdog();
         try {
           const response = await fetch(
-            created ? `/api/generate/${generationId}?after=${generationCursor}` : '/api/generate',
+            created
+              ? `/api/generate/${generationId}?after=${generationCursor}&follow=false`
+              : '/api/generate',
             {
               method: created ? 'GET' : 'POST',
               headers: created ? undefined : { 'content-type': 'application/json' },

@@ -8,7 +8,7 @@ export const GET: RequestHandler = ({ locals, params, url }) => {
   if (after === null) return json({ error: 'Invalid event cursor' }, { status: 400 });
   const job = generationJobs.owned(locals.user!.id, params.id);
   if (!job) return json({ error: 'Generation not found' }, { status: 404 });
-  return generationJobStreamResponse(job, after);
+  return generationJobStreamResponse(job, after, url.searchParams.get('follow') !== 'false');
 };
 
 export const DELETE: RequestHandler = ({ locals, params }) => {
