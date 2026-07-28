@@ -63,6 +63,7 @@ describe('generation job registry', () => {
     const reader = job.subscribe(0).getReader();
     job.append({ type: 'delta', content: 'answer' });
     expect(new TextDecoder().decode((await reader.read()).value)).toContain('answer');
+    expect(await new Response(job.subscribe(0, false)).text()).toContain('answer');
     await reader.cancel();
     expect(job.state).toBe('running');
     expect(job.abortController.signal.aborted).toBe(false);
