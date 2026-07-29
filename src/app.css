@@ -817,13 +817,8 @@ aside.desktop-hidden {
   color: #777;
   animation: blink 1s steps(1) infinite;
 }
-.loading-model p,
-.generation-reconnecting {
+.loading-model p {
   color: #777;
-}
-.streaming .generation-reconnecting {
-  margin-top: 8px;
-  font-size: 0.875rem;
 }
 .thinking span {
   display: inline-block;

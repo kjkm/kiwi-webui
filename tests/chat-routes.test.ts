@@ -8,10 +8,6 @@ import {
   POST as generate,
   _resetActiveConversationsForTests
 } from '../src/routes/api/generate/+server';
-import {
-  DELETE as removeGeneration,
-  GET as replayGeneration
-} from '../src/routes/api/generate/[id]/+server';
 
 let provider: Server;
 let providerOrigin = '';
@@ -24,36 +20,21 @@ let preloadBody: unknown;
 let alice: ReturnType<UserRepository['create']>;
 let bob: ReturnType<UserRepository['create']>;
 const conversationId = '00000000-0000-4000-8000-000000000001';
-const generationId = '00000000-0000-4000-8000-000000000002';
-const otherGenerationId = '00000000-0000-4000-8000-000000000003';
 
 function event(
   user: typeof alice,
-  options: {
-    conversationId?: string;
-    generationId?: string;
-    messages?: Array<{ role: 'user' | 'assistant'; content: string }>;
-  } = {}
+  id = conversationId,
+  messages: Array<{ role: 'user' | 'assistant'; content: string }> = [
+    { role: 'user', content: 'hello' }
+  ]
 ) {
   return {
     locals: { user },
     request: new Request('http://localhost/api/generate', {
       method: 'POST',
       headers: { 'content-type': 'application/json', origin: 'http://localhost' },
-      body: JSON.stringify({
-        generationId: options.generationId ?? generationId,
-        conversationId: options.conversationId ?? conversationId,
-        messages: options.messages ?? [{ role: 'user', content: 'hello' }]
-      })
+      body: JSON.stringify({ conversationId: id, messages })
     })
-  } as never;
-}
-
-function jobEvent(user: typeof alice, id: string, after = '0') {
-  return {
-    locals: { user },
-    params: { id },
-    url: new URL(`http://localhost/api/generate/${id}?after=${after}`)
   } as never;
 }
 
@@ -111,7 +92,6 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  _resetActiveConversationsForTests();
   closeDatabase();
   await new Promise<void>((resolve) => provider.close(() => resolve()));
 });
@@ -135,12 +115,11 @@ beforeEach(() => {
   vi.restoreAllMocks();
 });
 
-describe('resumable generation routes', () => {
-  it('streams a sequenced completed turn without persisting conversation content', async () => {
+describe('stateless generation route', () => {
+  it('streams a completed turn without persisting conversation content', async () => {
     const response = await generate(event(alice));
     expect(response.status).toBe(200);
     const stream = await response.text();
-    expect(stream).toContain('id: 1');
     expect(stream).toContain('"status":"generating"');
     expect(stream).toContain('answer');
     expect(psRequests).toBe(0);
@@ -152,9 +131,9 @@ describe('resumable generation routes', () => {
     expect(tables).not.toContain('messages');
   });
 
-  it('rejects malformed history and generation IDs before contacting the provider', async () => {
-    expect((await generate(event(alice, { conversationId: 'invalid' }))).status).toBe(400);
-    expect((await generate(event(alice, { generationId: 'invalid' }))).status).toBe(400);
+  it('rejects malformed history before contacting the provider', async () => {
+    const response = await generate(event(alice, 'invalid'));
+    expect(response.status).toBe(400);
     expect(requests).toBe(0);
   });
 
@@ -162,17 +141,26 @@ describe('resumable generation routes', () => {
     mode = 'error';
     const log = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const response = await generate(
-      event(alice, { messages: [{ role: 'user', content: 'secret' }] })
+      event(alice, conversationId, [{ role: 'user', content: 'secret' }])
     );
+    expect(response.status).toBe(200);
     expect(await response.text()).toContain('The model provider is unavailable');
     expect(requests).toBe(1);
-    const diagnostics = JSON.stringify(log.mock.calls);
-    expect(diagnostics).not.toContain('secret');
-    expect(diagnostics).not.toContain(generationId);
-    expect(diagnostics).not.toContain(conversationId);
+    expect(JSON.stringify(log.mock.calls)).not.toContain('secret');
   });
 
-  it('preserves Ollama loading status and failure behavior inside a job', async () => {
+  it('skips preload for a resident Ollama model', async () => {
+    process.env.OLLAMA_BASE_URL = `${providerOrigin}/`;
+    resetConfigForTests();
+    const response = await generate(event(alice));
+    const stream = await response.text();
+    expect(psRequests).toBe(1);
+    expect(preloadRequests).toBe(0);
+    expect(stream).not.toContain('loading_model');
+    expect(stream).toContain('"status":"generating"');
+  });
+
+  it('reports and completes an unloaded Ollama model preload before inference', async () => {
     process.env.OLLAMA_BASE_URL = providerOrigin;
     resetConfigForTests();
     ollamaMode = 'unloaded';
@@ -183,66 +171,46 @@ describe('resumable generation routes', () => {
     expect(preloadBody).toEqual({ model: 'test-model', messages: [], stream: false });
     expect(stream.indexOf('loading_model')).toBeLessThan(stream.indexOf('"status":"generating"'));
     expect(stream.indexOf('"status":"generating"')).toBeLessThan(stream.indexOf('answer'));
-
-    _resetActiveConversationsForTests();
-    requests = 0;
-    ollamaMode = 'preload-error';
-    vi.spyOn(console, 'error').mockImplementation(() => undefined);
-    const failed = await generate(event(alice));
-    expect(await failed.text()).toContain('The model provider is unavailable');
-    expect(requests).toBe(0);
   });
 
-  it('fails open without a false loading status when the residency probe fails', async () => {
+  it('fails open when the residency probe is unavailable', async () => {
     process.env.OLLAMA_BASE_URL = providerOrigin;
     resetConfigForTests();
     ollamaMode = 'probe-error';
     vi.spyOn(console, 'warn').mockImplementation(() => undefined);
-    const stream = await (await generate(event(alice))).text();
+    const response = await generate(event(alice));
+    const stream = await response.text();
     expect(stream).not.toContain('loading_model');
     expect(stream).toContain('answer');
+    expect(preloadRequests).toBe(0);
   });
 
-  it('idempotently resubscribes, conflicts other jobs, and runs inference once', async () => {
-    mode = 'slow';
-    const first = await generate(event(alice));
-    await first.body?.cancel();
-    const retry = await generate(event(alice));
-    const conflict = await generate(event(alice, { generationId: otherGenerationId }));
-    expect(retry.status).toBe(200);
-    expect(conflict.status).toBe(409);
-    expect(await retry.text()).toContain('answer');
-    expect(requests).toBe(1);
-  });
-
-  it('replays after a cursor and acknowledges a completed job', async () => {
-    await (await generate(event(alice))).text();
-    const replay = await replayGeneration(jobEvent(alice, generationId, '1'));
-    const text = await replay.text();
-    expect(text).not.toContain('id: 1\n');
-    expect(text).toContain('answer');
-    expect((await replayGeneration(jobEvent(alice, generationId, '-1'))).status).toBe(400);
-    expect((await removeGeneration(jobEvent(alice, generationId))).status).toBe(204);
-    expect((await replayGeneration(jobEvent(alice, generationId))).status).toBe(404);
-  });
-
-  it('does not reveal or mutate jobs across users', async () => {
-    mode = 'slow';
+  it('does not start inference when a required preload fails and releases concurrency', async () => {
+    process.env.OLLAMA_BASE_URL = providerOrigin;
+    resetConfigForTests();
+    ollamaMode = 'preload-error';
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const response = await generate(event(alice));
-    await response.body?.cancel();
-    expect((await replayGeneration(jobEvent(bob, generationId))).status).toBe(404);
-    expect((await removeGeneration(jobEvent(bob, generationId))).status).toBe(404);
-    expect((await generate(event(bob))).status).toBe(404);
-    expect((await removeGeneration(jobEvent(alice, generationId))).status).toBe(204);
+    expect(await response.text()).toContain('The model provider is unavailable');
+    expect(requests).toBe(0);
+
+    ollamaMode = 'resident';
+    const retry = await generate(event(alice));
+    expect(await retry.text()).toContain('answer');
   });
 
-  it('explicit cancellation releases conversation concurrency', async () => {
+  it('serializes generation per user and conversation and releases cancellation', async () => {
     mode = 'slow';
     const first = await generate(event(alice));
-    await first.body?.cancel();
-    expect((await removeGeneration(jobEvent(alice, generationId))).status).toBe(204);
+    const conflict = await generate(event(alice));
+    expect(conflict.status).toBe(409);
+    const otherUser = await generate(event(bob));
+    expect(otherUser.status).toBe(200);
+    await Promise.all([first.body?.cancel(), otherUser.body?.cancel()]);
+    await new Promise((resolve) => setTimeout(resolve, 130));
     mode = 'success';
-    const retry = await generate(event(alice, { generationId: otherGenerationId }));
-    expect(await retry.text()).toContain('answer');
+    const retry = await generate(event(alice));
+    expect(retry.status).toBe(200);
+    await retry.body?.cancel();
   });
 });

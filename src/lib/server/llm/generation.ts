@@ -9,7 +9,6 @@ export interface GenerationMessage {
 }
 
 export interface GenerationRequest {
-  generationId: string;
   conversationId: string;
   model: unknown;
   messages: GenerationMessage[];
@@ -20,7 +19,6 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-
 export function parseGenerationRequest(value: unknown): GenerationRequest | null {
   if (!value || typeof value !== 'object') return null;
   const body = value as Record<string, unknown>;
-  if (typeof body.generationId !== 'string' || !UUID.test(body.generationId)) return null;
   if (typeof body.conversationId !== 'string' || !UUID.test(body.conversationId)) return null;
   if (!Array.isArray(body.messages) || body.messages.length < 1) return null;
   if (body.messages.length > MAX_HISTORY_MESSAGES) return null;
@@ -37,10 +35,5 @@ export function parseGenerationRequest(value: unknown): GenerationRequest | null
     messages.push({ role: candidate.role, content: candidate.content });
   }
   if (messages.at(-1)?.role !== 'user') return null;
-  return {
-    generationId: body.generationId,
-    conversationId: body.conversationId,
-    model: body.model,
-    messages
-  };
+  return { conversationId: body.conversationId, model: body.model, messages };
 }

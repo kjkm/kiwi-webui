@@ -1,13 +1,14 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { parseGenerationRequest } from '$lib/server/llm/generation';
-import {
-  generationJobs,
-  generationJobStreamResponse,
-  GenerationJobError
-} from '$lib/server/llm/generation-jobs';
-import { runGenerationJob } from '$lib/server/llm/generation-runner';
 import { resolveProviderModel } from '$lib/server/llm/models';
+import { ensureOllamaModelReady } from '$lib/server/llm/ollama';
+import { consumeOpenAiStream, requestCompletion } from '$lib/server/llm/openai';
+
+const activeConversations = new Set<string>();
+const encoder = new TextEncoder();
+const event = (type: string, data: object = {}) =>
+  encoder.encode(`data: ${JSON.stringify({ type, ...data })}\n\n`);
 
 export const POST: RequestHandler = async ({ locals, request }) => {
   const body = parseGenerationRequest(await request.json().catch(() => null));
@@ -20,30 +21,73 @@ export const POST: RequestHandler = async ({ locals, request }) => {
     return json({ error: 'Model is not available' }, { status: 400 });
   }
 
-  if (request.signal.aborted) return json({ error: 'Generation cancelled' }, { status: 499 });
+  const activeKey = `${locals.user!.id}:${body.conversationId}`;
+  if (activeConversations.has(activeKey))
+    return json({ error: 'Generation already active' }, { status: 409 });
+  activeConversations.add(activeKey);
 
-  try {
-    const { job } = generationJobs.createOrGet(
-      {
-        id: body.generationId,
-        userId: locals.user!.id,
-        conversationId: body.conversationId,
-        model: selectedModel
-      },
-      (created) => void runGenerationJob(created, body.messages)
-    );
-    return generationJobStreamResponse(job, 0);
-  } catch (error) {
-    if (error instanceof GenerationJobError) {
-      if (error.code === 'not_found')
-        return json({ error: 'Generation not found' }, { status: 404 });
-      if (error.code === 'conflict') return json({ error: error.message }, { status: 409 });
-      return json({ error: error.message }, { status: 429 });
+  const abort = new AbortController();
+  request.signal.addEventListener('abort', () => abort.abort(), { once: true });
+
+  let cancelled = false;
+  const stream = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      let assistant = '';
+      let inferenceStarted = false;
+      try {
+        await ensureOllamaModelReady(selectedModel, {
+          signal: abort.signal,
+          onLoading: () => {
+            if (!cancelled) controller.enqueue(event('status', { status: 'loading_model' }));
+          }
+        });
+        if (cancelled) return;
+
+        controller.enqueue(event('status', { status: 'generating' }));
+        const upstream = await requestCompletion(body.messages, abort.signal, selectedModel);
+        if (cancelled) return;
+        inferenceStarted = true;
+
+        await consumeOpenAiStream(upstream.body!, (text) => {
+          assistant += text;
+          controller.enqueue(event('delta', { content: text }));
+        });
+        if (!assistant.trim()) throw new Error('Provider returned an empty response');
+        controller.enqueue(event('done'));
+      } catch {
+        if (!cancelled && !abort.signal.aborted) {
+          console.error(
+            inferenceStarted ? 'Completion stream failed' : 'Completion request failed'
+          );
+          controller.enqueue(
+            event('error', {
+              error: inferenceStarted
+                ? 'The response was interrupted'
+                : 'The model provider is unavailable'
+            })
+          );
+        }
+      } finally {
+        activeConversations.delete(activeKey);
+        if (!cancelled) controller.close();
+      }
+    },
+    cancel() {
+      cancelled = true;
+      abort.abort();
+      activeConversations.delete(activeKey);
     }
-    return json({ error: 'Unable to start generation' }, { status: 503 });
-  }
+  });
+
+  return new Response(stream, {
+    headers: {
+      'content-type': 'text/event-stream; charset=utf-8',
+      'cache-control': 'no-cache, no-transform',
+      connection: 'keep-alive'
+    }
+  });
 };
 
 export function _resetActiveConversationsForTests(): void {
-  generationJobs.reset();
+  activeConversations.clear();
 }
