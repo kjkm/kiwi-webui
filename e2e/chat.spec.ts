@@ -245,6 +245,9 @@ test('OIDC login, persistent streamed chat, CSRF protection, and logout', async 
   expect(await welcomeDialog.evaluate((element) => getComputedStyle(element).overflowY)).toBe(
     'hidden'
   );
+  expect(await welcomeDialog.evaluate((element) => getComputedStyle(element).boxShadow)).toBe(
+    'none'
+  );
   expect(
     await page
       .locator('.welcome-dialog-content')
