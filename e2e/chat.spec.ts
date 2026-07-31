@@ -242,10 +242,17 @@ test('OIDC login, persistent streamed chat, CSRF protection, and logout', async 
   expect(welcomeBox!.width).toBeLessThanOrEqual(390);
   expect(welcomeBox!.height).toBeLessThanOrEqual(640);
   await expect(welcomeAction).toBeVisible();
+  expect(await welcomeDialog.evaluate((element) => getComputedStyle(element).overflowY)).toBe(
+    'hidden'
+  );
   expect(
     await page
       .locator('.welcome-dialog-content')
-      .evaluate((element) => element.scrollHeight > element.clientHeight)
+      .evaluate(
+        (element) =>
+          getComputedStyle(element).overflowY === 'auto' &&
+          element.scrollHeight > element.clientHeight
+      )
   ).toBe(true);
   await welcomeAction.click();
   await expect(welcomeDialog).toHaveCount(0);
