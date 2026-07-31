@@ -9,7 +9,7 @@ A minimal, OIDC-only chat interface for one OpenAI-compatible provider. It uses 
 - Browser-local, user-partitioned chats with linear message history
 - Disposable temporary chats that remain only in page memory unless explicitly saved
 - Searchable provider model selection and streaming OpenAI-compatible responses
-- Responsive interface with sanitized Markdown and code blocks
+- Responsive interface with sanitized Markdown, code blocks, and KaTeX formulas
 
 There are no local passwords, public registration, admin console, files, RAG, tools, web search, or multi-provider management.
 
@@ -41,6 +41,14 @@ npm run build
 Edit `static/welcome.md` to customize the Markdown message shown after a user's first authenticated visit. The normal image build includes this file, so commit the edit and rebuild or redeploy Kiwi to publish new content. Markdown uses the same escaped and sanitized rendering path as assistant messages.
 
 Acknowledgement is stored in browser-local storage and partitioned by the authenticated OIDC user ID. After selecting “Cool, thanks.”, that user will not see the modal again automatically in the same browser profile—even if `welcome.md` changes. The current message can still be opened manually through **Welcome message** in the user menu. A different browser, device, private session, OIDC user, or cleared browser profile has an independent acknowledgement. Missing, empty, or unavailable welcome content does not block chat access.
+
+## Mathematical formulas
+
+Assistant responses render KaTeX formulas using `$...$` or `\\(...\\)` for inline mathematics and `$$...$$` or `\\[...\\]` for display mathematics. Escape a dollar delimiter as `\\$` when it must remain literal; delimiters inside inline and fenced code remain code, and conservative dollar parsing leaves ordinary currency unchanged.
+
+Incomplete streamed formulas remain readable source until their closing delimiter arrives. Invalid or unsupported KaTeX commands render visibly without stopping the response. Trusted KaTeX commands are disabled, and generated HTML and MathML pass through DOMPurify before display. Wide display formulas scroll within their message on narrow screens.
+
+KaTeX CSS and fonts are bundled into the client image and do not use an external CDN. Formula rendering is enabled for assistant messages only; user messages remain plain text and `static/welcome.md` retains ordinary sanitized Markdown behavior.
 
 ## Authentik configuration
 
