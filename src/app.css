@@ -429,6 +429,11 @@ aside.desktop-hidden {
 .account-row:hover {
   background: color-mix(in oklch, var(--ow-gray-100) 50%, transparent);
 }
+.account-row:focus-visible,
+.compact-account-trigger:focus-visible {
+  outline: 3px solid #78a7ff;
+  outline-offset: 2px;
+}
 .account-avatar {
   width: 28px;
   height: 28px;
@@ -497,7 +502,7 @@ aside.desktop-hidden {
   flex-direction: column;
   align-items: center;
   gap: 4.5px;
-  overflow: hidden;
+  overflow: visible;
   padding: 7px 7px 7px 8px;
   border-right: 1px solid color-mix(in oklch, var(--ow-gray-50) 30%, transparent);
   color: var(--ow-gray-900);
@@ -521,6 +526,23 @@ aside.desktop-hidden {
   width: 36px;
   height: 36px;
   flex-basis: 36px;
+}
+.compact-account-menu {
+  width: 36px;
+  margin-top: auto;
+}
+.compact-account-trigger {
+  padding: 4px;
+  cursor: pointer;
+}
+.compact-account-trigger:hover {
+  background: color-mix(in oklch, var(--ow-gray-100) 50%, transparent);
+}
+.compact-account-popover {
+  right: auto;
+  bottom: 0;
+  left: calc(100% + 8px);
+  width: min(220px, calc(100vw - 60px));
 }
 .rail-brand {
   position: relative;

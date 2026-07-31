@@ -59,6 +59,8 @@
   let temporaryMode = $state(false);
   let temporaryConversationId = $state<string | null>(null);
   let composerElement: HTMLTextAreaElement | null = null;
+  let expandedAccountMenu: HTMLDetailsElement | null = null;
+  let compactAccountMenu: HTMLDetailsElement | null = null;
 
   $effect(() => {
     const id = requestedChatId;
@@ -136,6 +138,8 @@
   }
 
   function toggleSidebar(): void {
+    expandedAccountMenu?.removeAttribute('open');
+    compactAccountMenu?.removeAttribute('open');
     sidebarOpen = !sidebarOpen;
     localStorage.setItem('kiwi_sidebar', sidebarOpen ? 'open' : 'closed');
   }
@@ -464,6 +468,18 @@
   <p class="disclaimer">AI can make mistakes. Check important information.</p>
 {/snippet}
 
+{#snippet accountMenuContent()}
+  <div class="account-identity">
+    <strong>{user.displayName ?? user.username}</strong><span>@{user.username}</span>
+  </div>
+  <button class="account-action" type="button" onclick={showWelcomeMessage}
+    ><InformationCircle /><span>Welcome message</span></button
+  >
+  <form method="POST" action={resolve('/auth/logout')} onsubmit={discardTemporaryChat}>
+    <button type="submit"><SignOut /><span>Sign out</span></button>
+  </form>
+{/snippet}
+
 <svelte:window onclick={() => (chatMenuId = null)} />
 
 <div class:sidebar-collapsed={!sidebarOpen} class="app-shell">
@@ -476,6 +492,16 @@
       <button class="sidebar-control" aria-label="New Chat" onclick={createChat}>
         <PencilSquare strokeWidth="2" />
       </button>
+      <details bind:this={compactAccountMenu} class="account-menu compact-account-menu">
+        <summary class="sidebar-control compact-account-trigger" aria-label="User menu">
+          <span class="account-avatar"
+            >{(user.displayName ?? user.username).slice(0, 1).toUpperCase()}</span
+          >
+        </summary>
+        <div class="account-popover compact-account-popover">
+          {@render accountMenuContent()}
+        </div>
+      </details>
     </nav>
 
     <aside class:desktop-hidden={!sidebarOpen} class:open={mobileNav} aria-label="Chat navigation">
@@ -551,7 +577,7 @@
       </div>
 
       <div class="sidebar-footer">
-        <details class="account-menu">
+        <details bind:this={expandedAccountMenu} class="account-menu">
           <summary class="account-row" aria-label="User menu">
             <span class="account-avatar"
               >{(user.displayName ?? user.username).slice(0, 1).toUpperCase()}</span
@@ -560,15 +586,7 @@
             <ChevronUpDown />
           </summary>
           <div class="account-popover">
-            <div class="account-identity">
-              <strong>{user.displayName ?? user.username}</strong><span>@{user.username}</span>
-            </div>
-            <button class="account-action" type="button" onclick={showWelcomeMessage}
-              ><InformationCircle /><span>Welcome message</span></button
-            >
-            <form method="POST" action={resolve('/auth/logout')} onsubmit={discardTemporaryChat}>
-              <button type="submit"><SignOut /><span>Sign out</span></button>
-            </form>
+            {@render accountMenuContent()}
           </div>
         </details>
       </div>
