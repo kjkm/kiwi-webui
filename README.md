@@ -36,6 +36,12 @@ npm run test:e2e
 npm run build
 ```
 
+## Welcome message
+
+Edit `static/welcome.md` to customize the Markdown message shown after a user's first authenticated visit. The normal image build includes this file, so commit the edit and rebuild or redeploy Kiwi to publish new content. Markdown uses the same escaped and sanitized rendering path as assistant messages.
+
+Acknowledgement is stored in browser-local storage and partitioned by the authenticated OIDC user ID. After selecting “Cool, thanks.”, that user will not see the modal again in the same browser profile—even if `welcome.md` changes. A different browser, device, private session, OIDC user, or cleared browser profile has an independent acknowledgement. Missing, empty, or unavailable welcome content does not block chat access.
+
 ## Authentik configuration
 
 Create an OAuth2/OpenID Provider and application with:
