@@ -252,6 +252,7 @@ test('OIDC login, persistent streamed chat, CSRF protection, and logout', async 
   await expect(welcomeAction).toBeFocused();
 
   await page.setViewportSize({ width: 390, height: 640 });
+  await expect(page.locator('.compact-account-trigger')).not.toBeVisible();
   const welcomeBox = await welcomeDialog.boundingBox();
   expect(welcomeBox!.width).toBeLessThanOrEqual(390);
   expect(welcomeBox!.height).toBeLessThanOrEqual(640);
@@ -285,8 +286,11 @@ test('OIDC login, persistent streamed chat, CSRF protection, and logout', async 
   expect(welcomeRequests).toBe(1);
   await page.setViewportSize({ width: 1280, height: 720 });
 
-  await page.getByLabel('User menu').click();
-  await page.getByRole('button', { name: 'Welcome message' }).click();
+  const expandedAccountMenu = page.locator('.sidebar-footer .account-menu');
+  await expandedAccountMenu.getByLabel('User menu').click();
+  await expect(expandedAccountMenu.getByRole('button', { name: 'Welcome message' })).toBeVisible();
+  await expect(expandedAccountMenu.getByRole('button', { name: 'Sign out' })).toBeVisible();
+  await expandedAccountMenu.getByRole('button', { name: 'Welcome message' }).click();
   await expect(welcomeDialog).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Edited welcome content' })).toBeVisible();
   expect(welcomeRequests).toBe(2);
@@ -329,7 +333,37 @@ test('OIDC login, persistent streamed chat, CSRF protection, and logout', async 
       collapsedNewChat!.height / 2 -
       (expandedNewChat!.y + expandedNewChat!.height / 2)
   ).toBeCloseTo(0, 1);
+
+  const compactAccountMenu = page.locator('.compact-account-menu');
+  const compactAccountTrigger = compactAccountMenu.getByLabel('User menu');
+  await expect(compactAccountTrigger).toBeVisible();
+  await expect(compactAccountTrigger.locator('.account-avatar')).toHaveText('E');
+  const compactTriggerBox = await compactAccountTrigger.boundingBox();
+  expect(720 - (compactTriggerBox!.y + compactTriggerBox!.height)).toBeLessThanOrEqual(12);
+  await page.locator('.sidebar-rail > .sidebar-control').nth(1).focus();
+  await page.keyboard.press('Tab');
+  await expect(compactAccountTrigger).toBeFocused();
+  expect(
+    await compactAccountTrigger.evaluate((element) => getComputedStyle(element).outlineStyle)
+  ).toBe('solid');
+  await page.keyboard.press('Enter');
+  await expect(compactAccountMenu).toHaveAttribute('open', '');
+  const compactPopover = compactAccountMenu.locator('.compact-account-popover');
+  await expect(compactPopover).toBeVisible();
+  await expect(compactPopover.locator('.account-identity')).toContainText('e2e-user');
+  await expect(compactPopover.getByRole('button', { name: 'Welcome message' })).toBeVisible();
+  await expect(compactPopover.getByRole('button', { name: 'Sign out' })).toBeVisible();
+  const compactPopoverBox = await compactPopover.boundingBox();
+  expect(compactPopoverBox!.x).toBeGreaterThanOrEqual(52);
+  expect(compactPopoverBox!.x + compactPopoverBox!.width).toBeLessThanOrEqual(1280);
+  expect(compactPopoverBox!.y).toBeGreaterThanOrEqual(0);
+  expect(compactPopoverBox!.y + compactPopoverBox!.height).toBeLessThanOrEqual(720);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
+    true
+  );
+
   await page.getByRole('button', { name: 'Open Sidebar' }).click();
+  await expect(compactAccountMenu).not.toHaveAttribute('open', '');
   await page.waitForTimeout(50);
   const expandingWidth = await page
     .locator('.sidebar-stage')
@@ -597,8 +631,9 @@ test('OIDC login, persistent streamed chat, CSRF protection, and logout', async 
   await expect(page.getByRole('heading', { name: 'Chat not found' })).toBeVisible();
   await page.getByRole('link', { name: 'Renamed chat' }).click();
 
-  await page.getByLabel('User menu').click();
-  await page.getByRole('button', { name: 'Sign out' }).click();
+  const accountMenuBeforeLogout = page.locator('.sidebar-footer .account-menu');
+  await accountMenuBeforeLogout.getByLabel('User menu').click();
+  await accountMenuBeforeLogout.getByRole('button', { name: 'Sign out' }).click();
   await expect(page).toHaveURL('/signin');
   await page.getByRole('link', { name: 'Continue with SSO' }).click();
   await expect(page.getByRole('link', { name: 'Renamed chat' })).toBeVisible();
@@ -619,8 +654,11 @@ test('OIDC login, persistent streamed chat, CSRF protection, and logout', async 
   await page.getByRole('button', { name: 'Delete', exact: true }).click();
   await expect(page).toHaveURL('/');
 
-  await page.getByLabel('User menu').click();
-  await page.getByRole('button', { name: 'Sign out' }).click();
+  await page.locator('.sidebar-footer .account-menu').getByLabel('User menu').click();
+  await page
+    .locator('.sidebar-footer .account-menu')
+    .getByRole('button', { name: 'Sign out' })
+    .click();
   await expect(page).toHaveURL('/signin');
 
   currentIdentity = {
@@ -636,8 +674,11 @@ test('OIDC login, persistent streamed chat, CSRF protection, and logout', async 
       Object.keys(localStorage).filter((key) => key.startsWith('kiwi_welcome_ack:'))
     )
   ).toHaveLength(2);
-  await page.getByLabel('User menu').click();
-  await page.getByRole('button', { name: 'Sign out' }).click();
+  await page.locator('.sidebar-footer .account-menu').getByLabel('User menu').click();
+  await page
+    .locator('.sidebar-footer .account-menu')
+    .getByRole('button', { name: 'Sign out' })
+    .click();
 
   currentIdentity = {
     sub: 'e2e-subject',
@@ -648,8 +689,11 @@ test('OIDC login, persistent streamed chat, CSRF protection, and logout', async 
   await page.getByRole('link', { name: 'Continue with SSO' }).click();
   await expect(page.getByRole('dialog', { name: 'Welcome message' })).toHaveCount(0);
   expect(welcomeRequests).toBe(requestsBeforeReturningUser);
-  await page.getByLabel('User menu').click();
-  await page.getByRole('button', { name: 'Sign out' }).click();
+  await page.locator('.sidebar-footer .account-menu').getByLabel('User menu').click();
+  await page
+    .locator('.sidebar-footer .account-menu')
+    .getByRole('button', { name: 'Sign out' })
+    .click();
 
   welcomeMode = 'missing';
   currentIdentity = {
@@ -660,8 +704,11 @@ test('OIDC login, persistent streamed chat, CSRF protection, and logout', async 
   await page.getByRole('link', { name: 'Continue with SSO' }).click();
   await expect(page.getByRole('dialog', { name: 'Welcome message' })).toHaveCount(0);
   await expect(page.getByRole('textbox', { name: 'Message' })).toBeVisible();
-  await page.getByLabel('User menu').click();
-  await page.getByRole('button', { name: 'Sign out' }).click();
+  await page.locator('.sidebar-footer .account-menu').getByLabel('User menu').click();
+  await page
+    .locator('.sidebar-footer .account-menu')
+    .getByRole('button', { name: 'Sign out' })
+    .click();
 
   welcomeMode = 'empty';
   currentIdentity = {
@@ -672,8 +719,11 @@ test('OIDC login, persistent streamed chat, CSRF protection, and logout', async 
   await page.getByRole('link', { name: 'Continue with SSO' }).click();
   await expect(page.getByRole('dialog', { name: 'Welcome message' })).toHaveCount(0);
   await expect(page.getByRole('textbox', { name: 'Message' })).toBeVisible();
-  await page.getByLabel('User menu').click();
-  await page.getByRole('button', { name: 'Sign out' }).click();
+  await page.locator('.sidebar-footer .account-menu').getByLabel('User menu').click();
+  await page
+    .locator('.sidebar-footer .account-menu')
+    .getByRole('button', { name: 'Sign out' })
+    .click();
 
   welcomeMode = 'content';
   currentIdentity = {
@@ -696,7 +746,10 @@ test('OIDC login, persistent streamed chat, CSRF protection, and logout', async 
   await page.reload();
   await expect(page.getByRole('dialog', { name: 'Welcome message' })).toBeVisible();
   await page.getByRole('button', { name: 'Cool, thanks.', exact: true }).click();
-  await page.getByLabel('User menu').click();
-  await page.getByRole('button', { name: 'Sign out' }).click();
+  await page.locator('.sidebar-footer .account-menu').getByLabel('User menu').click();
+  await page
+    .locator('.sidebar-footer .account-menu')
+    .getByRole('button', { name: 'Sign out' })
+    .click();
   await expect(page).toHaveURL('/signin');
 });
