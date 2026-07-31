@@ -857,6 +857,18 @@ aside.desktop-hidden {
 .markdown a {
   color: #2866cc;
 }
+.message.assistant .markdown {
+  min-width: 0;
+}
+.message.assistant .katex {
+  color: inherit;
+}
+.message.assistant .katex-display {
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+}
 .cursor {
   color: #777;
   animation: blink 1s steps(1) infinite;

@@ -1,9 +1,9 @@
 <script lang="ts">
   import { browser } from '$app/environment';
   import DOMPurify from 'dompurify';
-  import { marked } from 'marked';
+  import { renderMarkdownSource } from '$lib/markdown';
 
-  let { content }: { content: string } = $props();
+  let { content, enableMath = false }: { content: string; enableMath?: boolean } = $props();
 
   function escapeHtml(value: string): string {
     return value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
@@ -11,10 +11,8 @@
 
   function render(value: string): string {
     if (!browser) return escapeHtml(value);
-    const renderer = new marked.Renderer();
-    renderer.html = ({ text }: { text: string }) => escapeHtml(text);
-    const html = marked.parse(value, { async: false, gfm: true, breaks: true, renderer });
-    return DOMPurify.sanitize(html, { USE_PROFILES: { html: true } });
+    const html = renderMarkdownSource(value, enableMath);
+    return DOMPurify.sanitize(html, { USE_PROFILES: { html: true, mathMl: true } });
   }
 
   let rendered = $derived(render(content));

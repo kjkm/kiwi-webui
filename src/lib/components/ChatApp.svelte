@@ -665,7 +665,10 @@
             class="message"
           >
             <div class="message-label">{message.role === 'assistant' ? 'Kiwi' : 'You'}</div>
-            {#if message.role === 'assistant'}<Markdown content={message.content} />{:else}<p>
+            {#if message.role === 'assistant'}<Markdown
+                content={message.content}
+                enableMath
+              />{:else}<p>
                 {message.content}
               </p>{/if}
           </article>
@@ -673,7 +676,7 @@
         {#if streaming}
           <article class="message assistant streaming">
             <div class="message-label">Kiwi</div>
-            <Markdown content={streaming} /><span class="cursor">▋</span>
+            <Markdown content={streaming} enableMath /><span class="cursor">▋</span>
           </article>
         {:else if busy && generationStatus === 'loading_model'}
           <article class="message assistant loading-model" role="status">
