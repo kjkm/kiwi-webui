@@ -1,0 +1,19 @@
+<script lang="ts">
+  let { className = 'icon-18' } = $props();
+</script>
+
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 24 24"
+  fill="none"
+  stroke="currentColor"
+  stroke-width="1.8"
+  stroke-linecap="round"
+  stroke-linejoin="round"
+  class={className}
+  aria-hidden="true"
+>
+  <circle cx="12" cy="12" r="9"></circle>
+  <path d="M12 10.75v5"></path>
+  <path d="M12 7.5h.01"></path>
+</svg>

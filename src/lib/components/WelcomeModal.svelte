@@ -11,15 +11,18 @@
   let acknowledgementKey = $derived(`kiwi_welcome_ack:${userId}`);
 
   onMount(() => {
+    const reopen = () => void loadWelcomeMessage();
+    window.addEventListener('kiwi:show-welcome', reopen);
+
     let acknowledged = false;
     try {
       acknowledged = localStorage.getItem(acknowledgementKey) === '1';
     } catch {
       // Browser storage policy must not prevent the message from being shown or dismissed.
     }
-    if (acknowledged) return;
+    if (!acknowledged) void loadWelcomeMessage();
 
-    void loadWelcomeMessage();
+    return () => window.removeEventListener('kiwi:show-welcome', reopen);
   });
 
   async function loadWelcomeMessage(): Promise<void> {

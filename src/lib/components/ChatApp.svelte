@@ -11,6 +11,7 @@
   import ChevronUpDown from './icons/ChevronUpDown.svelte';
   import EllipsisHorizontal from './icons/EllipsisHorizontal.svelte';
   import GarbageBin from './icons/GarbageBin.svelte';
+  import InformationCircle from './icons/InformationCircle.svelte';
   import Pencil from './icons/Pencil.svelte';
   import PencilSquare from './icons/PencilSquare.svelte';
   import SidebarIcon from './icons/Sidebar.svelte';
@@ -137,6 +138,12 @@
   function toggleSidebar(): void {
     sidebarOpen = !sidebarOpen;
     localStorage.setItem('kiwi_sidebar', sidebarOpen ? 'open' : 'closed');
+  }
+
+  function showWelcomeMessage(event: MouseEvent): void {
+    window.dispatchEvent(new Event('kiwi:show-welcome'));
+    (event.currentTarget as HTMLElement).closest('details')?.removeAttribute('open');
+    mobileNav = false;
   }
 
   async function refreshChats(): Promise<void> {
@@ -556,6 +563,9 @@
             <div class="account-identity">
               <strong>{user.displayName ?? user.username}</strong><span>@{user.username}</span>
             </div>
+            <button class="account-action" type="button" onclick={showWelcomeMessage}
+              ><InformationCircle /><span>Welcome message</span></button
+            >
             <form method="POST" action={resolve('/auth/logout')} onsubmit={discardTemporaryChat}>
               <button type="submit"><SignOut /><span>Sign out</span></button>
             </form>

@@ -470,6 +470,7 @@ aside.desktop-hidden {
 .account-identity span {
   color: var(--ow-gray-600);
 }
+.account-popover .account-action,
 .account-popover form button {
   width: 100%;
   display: flex;
@@ -483,6 +484,7 @@ aside.desktop-hidden {
   background: transparent;
   text-align: left;
 }
+.account-popover .account-action:hover,
 .account-popover form button:hover {
   background: var(--ow-gray-100);
 }
@@ -1140,6 +1142,7 @@ aside.desktop-hidden {
   .sidebar-empty {
     color: var(--ow-gray-400);
   }
+  .account-popover .account-action:hover,
   .account-popover form button:hover {
     background: var(--ow-gray-800);
   }
