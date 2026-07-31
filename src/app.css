@@ -530,6 +530,7 @@ aside.desktop-hidden {
 .compact-account-menu {
   width: 36px;
   margin-top: auto;
+  margin-bottom: 5px;
 }
 .compact-account-trigger {
   padding: 4px;
