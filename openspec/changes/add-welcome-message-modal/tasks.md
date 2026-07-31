@@ -12,6 +12,7 @@
 - [x] 2.3 Add the exact “Cool, thanks.” acknowledgement action with storage-failure-safe dismissal
 - [x] 2.4 Add desktop and mobile styling with constrained sizing, scrollable long content, and a reachable action area
 - [x] 2.5 Integrate the modal into the persistent authenticated application layout without coupling it to chat routes
+- [x] 2.6 Add a user-menu action that manually reopens the current welcome message without clearing acknowledgement
 
 ## 3. Regression Coverage
 
@@ -19,6 +20,7 @@
 - [x] 3.2 Add browser coverage showing acknowledgement is isolated between OIDC users and remains valid when welcome content changes
 - [x] 3.3 Add browser coverage for Escape and backdrop behavior, keyboard focus containment, and responsive long-content scrolling
 - [x] 3.4 Add failure-path coverage for unavailable, empty, and blocked-storage conditions while confirming chat remains usable
+- [x] 3.5 Add browser coverage for manually reopening updated welcome content after acknowledgement
 
 ## 4. Documentation and Validation
 

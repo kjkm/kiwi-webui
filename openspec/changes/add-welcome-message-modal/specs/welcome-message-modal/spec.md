@@ -32,7 +32,15 @@ The system SHALL show the welcome modal once per authenticated OIDC user and bro
 
 #### Scenario: Welcome content changes after acknowledgement
 - **WHEN** an acknowledged user visits after the operator edits the welcome Markdown
-- **THEN** the system does not display the message again
+- **THEN** the system does not display the message again automatically
+
+#### Scenario: Acknowledged user manually reopens the message
+- **WHEN** an authenticated user selects “Welcome message” from the user menu
+- **THEN** the system loads and displays the current welcome Markdown regardless of stored acknowledgement
+
+#### Scenario: Manual reopening preserves acknowledgement
+- **WHEN** an acknowledged user manually reopens and closes the welcome message
+- **THEN** the existing acknowledgement remains valid for subsequent visits
 
 ### Requirement: Explicit acknowledgement
 The system SHALL provide a single acknowledgement button labeled exactly “Cool, thanks.” and SHALL record acknowledgement only when that action is activated.

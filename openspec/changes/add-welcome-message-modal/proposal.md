@@ -7,7 +7,8 @@ New users currently enter the chat interface without any operator-provided intro
 - Add a repository-managed Markdown file containing the operator-authored welcome message.
 - Show the sanitized Markdown in an accessible, responsive modal on the user's first authenticated visit.
 - Require explicit dismissal through a button labeled “Cool, thanks.” before recording acknowledgement.
-- Store acknowledgement locally, partitioned by OIDC user, so edits to the Markdown do not make the message reappear.
+- Add a user-menu action that reopens the current welcome message on demand.
+- Store acknowledgement locally, partitioned by OIDC user, so edits to the Markdown do not make the message reappear automatically.
 - Fail open when the message is missing, empty, or unavailable so chat access is never blocked by welcome-message loading.
 
 ## Capabilities

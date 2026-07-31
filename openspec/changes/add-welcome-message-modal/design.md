@@ -46,6 +46,10 @@ A global browser key was rejected because multiple OIDC users can share a browse
 
 The modal will offer one button labeled exactly “Cool, thanks.” Backdrop clicks and Escape cancellation will not dismiss it. Activating the button will attempt to store acknowledgement and will close the modal even if storage fails, preventing storage policy or quota errors from trapping the user.
 
+### Permit deliberate reopening from the user menu
+
+The account popover will include a “Welcome message” action that signals the persistent authenticated-layout modal to load and display the current Markdown regardless of acknowledgement. Manual reopening will not clear or version the stored acknowledgement, so closing and later visiting still follows the original once-only automatic behavior. A layout-scoped browser event avoids coupling `ChatApp` to modal state while keeping the action available on every chat route.
+
 ### Use an accessible modal dialog and existing Markdown renderer
 
 The component will use a native dialog or equivalent accessible dialog semantics, move focus into the modal when opened, contain keyboard focus while open, and restore normal page interaction after dismissal. The content region will scroll independently on constrained screens, and the action will remain reachable. Markdown will be rendered with the existing sanitized `Markdown` component rather than a second parser path.
