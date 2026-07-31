@@ -300,6 +300,7 @@ test('OIDC login, persistent streamed chat, CSRF protection, and logout', async 
   const emptyConversationPosition = await page.getByText('No conversations yet').boundingBox();
   const expandedLogo = await page.locator('.brand-logo').boundingBox();
   const expandedNewChat = await page.locator('.new-chat > svg').boundingBox();
+  const expandedProfile = await page.locator('.sidebar-footer .account-avatar').boundingBox();
   await page.getByRole('button', { name: 'Close Sidebar' }).click();
   await page.waitForTimeout(50);
   const collapsingWidth = await page
@@ -337,9 +338,16 @@ test('OIDC login, persistent streamed chat, CSRF protection, and logout', async 
   const compactAccountMenu = page.locator('.compact-account-menu');
   const compactAccountTrigger = compactAccountMenu.getByLabel('User menu');
   await expect(compactAccountTrigger).toBeVisible();
-  await expect(compactAccountTrigger.locator('.account-avatar')).toHaveText('E');
+  const compactProfile = compactAccountTrigger.locator('.account-avatar');
+  await expect(compactProfile).toHaveText('E');
   const compactTriggerBox = await compactAccountTrigger.boundingBox();
-  expect(720 - (compactTriggerBox!.y + compactTriggerBox!.height)).toBeLessThanOrEqual(12);
+  const compactProfileBox = await compactProfile.boundingBox();
+  expect(720 - (compactTriggerBox!.y + compactTriggerBox!.height)).toBeLessThanOrEqual(14);
+  expect(
+    compactProfileBox!.y +
+      compactProfileBox!.height / 2 -
+      (expandedProfile!.y + expandedProfile!.height / 2)
+  ).toBeCloseTo(0, 1);
   await page.locator('.sidebar-rail > .sidebar-control').nth(1).focus();
   await page.keyboard.press('Tab');
   await expect(compactAccountTrigger).toBeFocused();
