@@ -94,6 +94,48 @@ button {
   width: 100%;
   margin-top: 20px;
 }
+.welcome-dialog {
+  width: min(calc(100% - 32px), 640px);
+  max-width: none;
+  max-height: min(82dvh, 760px);
+  padding: 0;
+  border: 1px solid var(--ow-gray-200);
+  border-radius: 18px;
+  color: var(--ow-gray-900);
+  background: #fff;
+  box-shadow: 0 24px 80px #0003;
+}
+.welcome-dialog::backdrop {
+  background: #0008;
+  backdrop-filter: blur(2px);
+}
+.welcome-dialog-panel {
+  display: flex;
+  max-height: min(82dvh, 760px);
+  flex-direction: column;
+}
+.welcome-dialog-content {
+  min-height: 0;
+  overflow-y: auto;
+  padding: 30px 32px 24px;
+  overscroll-behavior: contain;
+}
+.welcome-dialog-content .markdown {
+  line-height: 1.62;
+}
+.welcome-dialog-content .markdown h1 {
+  margin: 0 0 18px;
+  font-size: 1.55rem;
+  line-height: 1.25;
+}
+.welcome-dialog-actions {
+  display: flex;
+  flex: none;
+  justify-content: flex-end;
+  padding: 16px 24px;
+  border-top: 1px solid var(--ow-gray-200);
+  background: #fff;
+}
 .signin-page {
   min-height: 100dvh;
   display: grid;
@@ -994,6 +1036,23 @@ aside.desktop-hidden {
     max-width: 88%;
     margin-right: 0;
   }
+  .welcome-dialog {
+    width: calc(100% - 20px);
+    max-height: calc(100dvh - 20px);
+    border-radius: 15px;
+  }
+  .welcome-dialog-panel {
+    max-height: calc(100dvh - 20px);
+  }
+  .welcome-dialog-content {
+    padding: 24px 20px 18px;
+  }
+  .welcome-dialog-actions {
+    padding: 14px 16px;
+  }
+  .welcome-dialog-actions .primary-button {
+    width: 100%;
+  }
 }
 @media (prefers-reduced-motion: reduce) {
   .sidebar-stage,
@@ -1017,6 +1076,16 @@ aside.desktop-hidden {
   .signin-card {
     border-color: var(--ow-gray-850);
     box-shadow: none;
+  }
+  .welcome-dialog {
+    color: var(--ow-gray-100);
+    border-color: var(--ow-gray-800);
+    background: var(--ow-gray-900);
+    box-shadow: 0 24px 80px #0008;
+  }
+  .welcome-dialog-actions {
+    border-color: var(--ow-gray-800);
+    background: var(--ow-gray-900);
   }
   .muted,
   .eyebrow {
