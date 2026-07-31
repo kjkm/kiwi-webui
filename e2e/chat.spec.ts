@@ -12,6 +12,11 @@ const codes = new Map<string, string>();
 let counter = 0;
 let completionModel = '';
 let lastPreloadBody: unknown;
+let currentIdentity = {
+  sub: 'e2e-subject',
+  username: 'e2e-user',
+  email: 'e2e@example.com'
+};
 const loadedModels = new Set<string>();
 let idp: Server;
 let llm: Server;
@@ -37,9 +42,9 @@ function jwt(nonce: string): string {
   const body = encode({
     iss: issuer,
     aud: clientId,
-    sub: 'e2e-subject',
-    preferred_username: 'e2e-user',
-    email: 'e2e@example.com',
+    sub: currentIdentity.sub,
+    preferred_username: currentIdentity.username,
+    email: currentIdentity.email,
     nonce,
     iat: now,
     exp: now + 300
@@ -162,6 +167,32 @@ test.afterAll(async () => {
 });
 
 test('OIDC login, persistent streamed chat, CSRF protection, and logout', async ({ page }) => {
+  currentIdentity = {
+    sub: 'e2e-subject',
+    username: 'e2e-user',
+    email: 'e2e@example.com'
+  };
+  let welcomeMode: 'content' | 'missing' | 'empty' = 'content';
+  let welcomeRequests = 0;
+  let welcomeBody = [
+    '# Welcome to Kiwi',
+    '',
+    'This is **operator-authored** Markdown.',
+    '',
+    '<script>window.welcomePwned=true</script>',
+    '',
+    ...Array.from({ length: 24 }, (_, index) => `Welcome detail ${index + 1}.`)
+  ].join('\n\n');
+  await page.route('**/welcome.md', async (route) => {
+    welcomeRequests += 1;
+    if (welcomeMode === 'missing') return route.fulfill({ status: 503, body: 'Unavailable' });
+    return route.fulfill({
+      status: 200,
+      contentType: 'text/markdown',
+      body: welcomeMode === 'empty' ? '   \n' : welcomeBody
+    });
+  });
+
   await page.goto('/signin');
   await expect(page.locator('link[rel="icon"]')).toHaveAttribute(
     'href',
@@ -189,6 +220,46 @@ test('OIDC login, persistent streamed chat, CSRF protection, and logout', async 
     .toBe('inline-flex');
   await page.getByRole('link', { name: 'Continue with SSO' }).click();
   await expect(page).toHaveURL('/');
+
+  const welcomeDialog = page.getByRole('dialog', { name: 'Welcome message' });
+  const welcomeAction = page.getByRole('button', { name: 'Cool, thanks.', exact: true });
+  await expect(welcomeDialog).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Welcome to Kiwi' })).toBeVisible();
+  await expect(page.locator('.welcome-dialog script')).toHaveCount(0);
+  expect(
+    await page.evaluate(() => (window as Window & { welcomePwned?: boolean }).welcomePwned)
+  ).not.toBe(true);
+  await expect(welcomeAction).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(welcomeDialog).toBeVisible();
+  await page.mouse.click(1, 1);
+  await expect(welcomeDialog).toBeVisible();
+  await page.keyboard.press('Tab');
+  await expect(welcomeAction).toBeFocused();
+
+  await page.setViewportSize({ width: 390, height: 640 });
+  const welcomeBox = await welcomeDialog.boundingBox();
+  expect(welcomeBox!.width).toBeLessThanOrEqual(390);
+  expect(welcomeBox!.height).toBeLessThanOrEqual(640);
+  await expect(welcomeAction).toBeVisible();
+  expect(
+    await page
+      .locator('.welcome-dialog-content')
+      .evaluate((element) => element.scrollHeight > element.clientHeight)
+  ).toBe(true);
+  await welcomeAction.click();
+  await expect(welcomeDialog).toHaveCount(0);
+  expect(
+    await page.evaluate(() =>
+      Object.keys(localStorage).filter((key) => key.startsWith('kiwi_welcome_ack:'))
+    )
+  ).toHaveLength(1);
+
+  welcomeBody = '# Edited welcome content';
+  await page.reload();
+  await expect(welcomeDialog).toHaveCount(0);
+  expect(welcomeRequests).toBe(1);
+  await page.setViewportSize({ width: 1280, height: 720 });
 
   const emptyConversationPosition = await page.getByText('No conversations yet').boundingBox();
   const expandedLogo = await page.locator('.brand-logo').boundingBox();
@@ -496,6 +567,83 @@ test('OIDC login, persistent streamed chat, CSRF protection, and logout', async 
   await page.getByRole('button', { name: 'Delete', exact: true }).click();
   await expect(page).toHaveURL('/');
 
+  await page.getByLabel('User menu').click();
+  await page.getByRole('button', { name: 'Sign out' }).click();
+  await expect(page).toHaveURL('/signin');
+
+  currentIdentity = {
+    sub: 'e2e-second-subject',
+    username: 'e2e-second-user',
+    email: 'e2e-second@example.com'
+  };
+  await page.getByRole('link', { name: 'Continue with SSO' }).click();
+  await expect(page.getByRole('heading', { name: 'Edited welcome content' })).toBeVisible();
+  await page.getByRole('button', { name: 'Cool, thanks.', exact: true }).click();
+  expect(
+    await page.evaluate(() =>
+      Object.keys(localStorage).filter((key) => key.startsWith('kiwi_welcome_ack:'))
+    )
+  ).toHaveLength(2);
+  await page.getByLabel('User menu').click();
+  await page.getByRole('button', { name: 'Sign out' }).click();
+
+  currentIdentity = {
+    sub: 'e2e-subject',
+    username: 'e2e-user',
+    email: 'e2e@example.com'
+  };
+  const requestsBeforeReturningUser = welcomeRequests;
+  await page.getByRole('link', { name: 'Continue with SSO' }).click();
+  await expect(page.getByRole('dialog', { name: 'Welcome message' })).toHaveCount(0);
+  expect(welcomeRequests).toBe(requestsBeforeReturningUser);
+  await page.getByLabel('User menu').click();
+  await page.getByRole('button', { name: 'Sign out' }).click();
+
+  welcomeMode = 'missing';
+  currentIdentity = {
+    sub: 'e2e-missing-subject',
+    username: 'e2e-missing-user',
+    email: 'e2e-missing@example.com'
+  };
+  await page.getByRole('link', { name: 'Continue with SSO' }).click();
+  await expect(page.getByRole('dialog', { name: 'Welcome message' })).toHaveCount(0);
+  await expect(page.getByRole('textbox', { name: 'Message' })).toBeVisible();
+  await page.getByLabel('User menu').click();
+  await page.getByRole('button', { name: 'Sign out' }).click();
+
+  welcomeMode = 'empty';
+  currentIdentity = {
+    sub: 'e2e-empty-subject',
+    username: 'e2e-empty-user',
+    email: 'e2e-empty@example.com'
+  };
+  await page.getByRole('link', { name: 'Continue with SSO' }).click();
+  await expect(page.getByRole('dialog', { name: 'Welcome message' })).toHaveCount(0);
+  await expect(page.getByRole('textbox', { name: 'Message' })).toBeVisible();
+  await page.getByLabel('User menu').click();
+  await page.getByRole('button', { name: 'Sign out' }).click();
+
+  welcomeMode = 'content';
+  currentIdentity = {
+    sub: 'e2e-blocked-storage-subject',
+    username: 'e2e-blocked-storage-user',
+    email: 'e2e-blocked-storage@example.com'
+  };
+  await page.addInitScript(() => {
+    const setItem = Storage.prototype.setItem;
+    Storage.prototype.setItem = function (key: string, value: string): void {
+      if (key.startsWith('kiwi_welcome_ack:')) throw new DOMException('Storage blocked');
+      setItem.call(this, key, value);
+    };
+  });
+  await page.getByRole('link', { name: 'Continue with SSO' }).click();
+  await expect(page.getByRole('dialog', { name: 'Welcome message' })).toBeVisible();
+  await page.getByRole('button', { name: 'Cool, thanks.', exact: true }).click();
+  await expect(page.getByRole('dialog', { name: 'Welcome message' })).toHaveCount(0);
+  await expect(page.getByRole('textbox', { name: 'Message' })).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole('dialog', { name: 'Welcome message' })).toBeVisible();
+  await page.getByRole('button', { name: 'Cool, thanks.', exact: true }).click();
   await page.getByLabel('User menu').click();
   await page.getByRole('button', { name: 'Sign out' }).click();
   await expect(page).toHaveURL('/signin');
