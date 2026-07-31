@@ -151,9 +151,20 @@ test.beforeAll(async () => {
       response.writeHead(200, { 'content-type': 'text/event-stream' });
       response.flushHeaders();
       await new Promise((resolve) => setTimeout(resolve, 80));
-      response.write('data: {"choices":[{"delta":{"content":"Hello **world**. "}}]}\n\n');
       response.write(
-        'data: {"choices":[{"delta":{"content":"<script>window.pwned=true</script>"}}]}\n\n'
+        `data: ${JSON.stringify({ choices: [{ delta: { content: 'Hello **world**. Formula: $x^2 + ' } }] })}\n\n`
+      );
+      await new Promise((resolve) => setTimeout(resolve, 350));
+      response.write(
+        `data: ${JSON.stringify({
+          choices: [
+            {
+              delta: {
+                content: String.raw`y^2$. $$\displaystyle x_1+x_2+x_3+x_4+x_5+x_6+x_7+x_8+x_9+x_{10}+x_{11}+x_{12}=100$$ <script>window.pwned=true</script> $\href{javascript:alert(1)}{click}$`
+              }
+            }
+          ]
+        })}\n\n`
       );
       response.end('data: [DONE]\n\n');
     })();
@@ -178,6 +189,8 @@ test('OIDC login, persistent streamed chat, CSRF protection, and logout', async 
     '# Welcome to Kiwi',
     '',
     'This is **operator-authored** Markdown.',
+    '',
+    'Formula delimiters stay literal here: $welcome$.',
     '',
     '<script>window.welcomePwned=true</script>',
     '',
@@ -226,6 +239,7 @@ test('OIDC login, persistent streamed chat, CSRF protection, and logout', async 
   await expect(welcomeDialog).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Welcome to Kiwi' })).toBeVisible();
   await expect(page.locator('.welcome-dialog script')).toHaveCount(0);
+  await expect(page.locator('.welcome-dialog .katex')).toHaveCount(0);
   expect(
     await page.evaluate(() => (window as Window & { welcomePwned?: boolean }).welcomePwned)
   ).not.toBe(true);
@@ -409,7 +423,13 @@ test('OIDC login, persistent streamed chat, CSRF protection, and logout', async 
       messages: [],
       stream: false
     });
+  const streamingMessage = page.locator('.message.streaming');
+  await expect(streamingMessage).toContainText('Formula: $x^2 +');
+  await expect(streamingMessage.locator('.katex')).toHaveCount(0);
   await expect(page.getByText('Hello world.')).toBeVisible();
+  await expect(page.locator('.message.assistant .katex-display')).toBeVisible();
+  await expect(page.locator('.message.assistant .katex math').first()).toBeAttached();
+  await expect(page.locator('.message.assistant a')).toHaveCount(0);
   await expect(page.getByText('Loading model…')).toHaveCount(0);
   await expect(temporaryComposer).toBeFocused();
   expect(new URL(page.url()).pathname).toBe('/');
@@ -469,6 +489,16 @@ test('OIDC login, persistent streamed chat, CSRF protection, and logout', async 
   expect(firstConversationPosition?.y).toBe(emptyConversationPosition?.y);
 
   const savedConversationUrl = page.url();
+  await page.setViewportSize({ width: 390, height: 800 });
+  expect(
+    await page
+      .locator('.message.assistant .katex-display')
+      .first()
+      .evaluate((element) => ({
+        formulaScrolls: element.scrollWidth > element.clientWidth,
+        pageContained: document.documentElement.scrollWidth <= window.innerWidth
+      }))
+  ).toEqual({ formulaScrolls: true, pageContained: true });
   await page.setViewportSize({ width: 700, height: 800 });
   await page.getByRole('button', { name: 'Open Sidebar' }).click();
   await page.waitForTimeout(220);
@@ -510,11 +540,15 @@ test('OIDC login, persistent streamed chat, CSRF protection, and logout', async 
     .poll(() => page.evaluate(() => (window as Window & { pwned?: boolean }).pwned))
     .not.toBe(true);
   await expect(page.locator('.message.assistant script')).toHaveCount(0);
+  await expect(page.locator('.message.streaming')).toHaveCount(0);
+  await expect(composer).toBeEnabled();
 
   const conversationUrl = page.url();
   await composer.fill('Follow up');
   await composer.press('Enter');
   await expect(page.getByText('Follow up')).toBeVisible();
+  await expect(page.locator('.message.assistant .katex-display')).toHaveCount(2);
+  await expect(composer).toBeEnabled();
   await expect(page.locator('.message.assistant').filter({ hasText: 'Hello world.' })).toHaveCount(
     2
   );
