@@ -45,6 +45,17 @@ describe('local chat repository', () => {
     ]);
   });
 
+  it('preserves formula source without storing rendered markup', async () => {
+    const chat = await repository.create('alice', 'Math');
+    const formula = String.raw`The result is $$\sum_{i=1}^{n} i$$.`;
+
+    await repository.append('alice', chat.id, 'assistant', formula);
+
+    const stored = (await repository.get('alice', chat.id))?.messages[0].content;
+    expect(stored).toBe(formula);
+    expect(stored).not.toContain('class="katex"');
+  });
+
   it('atomically converts an ordered transcript into a local chat', async () => {
     const saved = await repository.createWithMessages('alice', 'Temporary chat', [
       { role: 'user', content: 'one', createdAt: 10 },
