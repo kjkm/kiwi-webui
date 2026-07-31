@@ -98,6 +98,7 @@ button {
   width: min(calc(100% - 32px), 640px);
   max-width: none;
   max-height: min(82dvh, 760px);
+  overflow: hidden;
   padding: 0;
   border: 1px solid var(--ow-gray-200);
   border-radius: 18px;
