@@ -261,6 +261,14 @@ test('OIDC login, persistent streamed chat, CSRF protection, and logout', async 
   expect(welcomeRequests).toBe(1);
   await page.setViewportSize({ width: 1280, height: 720 });
 
+  await page.getByLabel('User menu').click();
+  await page.getByRole('button', { name: 'Welcome message' }).click();
+  await expect(welcomeDialog).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Edited welcome content' })).toBeVisible();
+  expect(welcomeRequests).toBe(2);
+  await welcomeAction.click();
+  await expect(welcomeDialog).toHaveCount(0);
+
   const emptyConversationPosition = await page.getByText('No conversations yet').boundingBox();
   const expandedLogo = await page.locator('.brand-logo').boundingBox();
   const expandedNewChat = await page.locator('.new-chat > svg').boundingBox();
