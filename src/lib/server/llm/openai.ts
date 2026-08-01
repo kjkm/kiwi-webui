@@ -33,6 +33,8 @@ export async function requestCompletion(
   return response;
 }
 
+const TITLE_RESPONSE_MAX = 4096;
+
 export async function requestTitleCompletion(
   message: string,
   signal: AbortSignal,
@@ -48,7 +50,7 @@ export async function requestTitleCompletion(
     headers: {
       authorization: `Bearer ${config.openai.apiKey}`,
       'content-type': 'application/json',
-      accept: 'application/json'
+      accept: 'text/event-stream'
     },
     body: JSON.stringify({
       model,
@@ -56,17 +58,19 @@ export async function requestTitleCompletion(
         { role: 'system', content: TITLE_INSTRUCTION },
         { role: 'user', content: message }
       ],
-      stream: false,
-      max_tokens: 32
+      stream: true
     }),
     signal
   });
-  if (!response.ok) throw new Error(`Provider request failed (${response.status})`);
-  const payload = (await response.json()) as {
-    choices?: Array<{ message?: { content?: unknown } }>;
-  };
-  const content = payload.choices?.[0]?.message?.content;
-  if (typeof content !== 'string') throw new Error('Provider returned an invalid title response');
+  if (!response.ok || !response.body)
+    throw new Error(`Provider request failed (${response.status})`);
+
+  let content = '';
+  await consumeOpenAiStream(response.body, (delta) => {
+    content += delta;
+    if (content.length > TITLE_RESPONSE_MAX)
+      throw new Error('Provider returned an excessive title response');
+  });
   return content;
 }
 
