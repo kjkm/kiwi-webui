@@ -11,6 +11,10 @@ const { publicKey, privateKey } = generateKeyPairSync('rsa', { modulusLength: 20
 const codes = new Map<string, string>();
 let counter = 0;
 let completionModel = '';
+let titleModel = '';
+let titleMode: 'success' | 'error' | 'slow' = 'success';
+let releaseTitle: (() => void) | null = null;
+const titleRequests: string[] = [];
 let lastPreloadBody: unknown;
 let currentIdentity = {
   sub: 'e2e-subject',
@@ -146,7 +150,32 @@ test.beforeAll(async () => {
         loadedModels.add(payload.model);
         return json(response, 200, { done: true });
       }
-      const payload = JSON.parse(await readBody(request)) as { model?: string };
+      const payload = JSON.parse(await readBody(request)) as {
+        model?: string;
+        stream?: boolean;
+        messages?: Array<{ role?: string; content?: string }>;
+      };
+      if (payload.stream === false) {
+        titleModel = payload.model ?? '';
+        const firstMessage =
+          payload.messages?.find((message) => message.role === 'user')?.content ?? '';
+        titleRequests.push(firstMessage);
+        if (titleMode === 'slow') {
+          await new Promise<void>((resolve) => {
+            releaseTitle = resolve;
+          });
+          releaseTitle = null;
+        }
+        if (titleMode === 'error') return json(response, 503, { error: 'unavailable' });
+        const titles: Record<string, string> = {
+          'Save temporary': 'Saved temporary title',
+          'Say hello': 'Greeting chat',
+          'Preserve my name': 'Generated overwrite'
+        };
+        return json(response, 200, {
+          choices: [{ message: { content: titles[firstMessage] ?? 'Generated chat title' } }]
+        });
+      }
       completionModel = payload.model ?? '';
       response.writeHead(200, { 'content-type': 'text/event-stream' });
       response.flushHeaders();
@@ -524,9 +553,16 @@ test('OIDC login, persistent streamed chat, CSRF protection, and logout', async 
   await page.getByRole('textbox', { name: 'Message' }).fill('Save temporary');
   await page.getByRole('textbox', { name: 'Message' }).press('Enter');
   await expect(page.getByText('Hello world.')).toBeVisible();
+  titleMode = 'slow';
   await page.getByRole('button', { name: 'Save temporary chat' }).click();
   await expect(page).toHaveURL(/\/c\//);
   await expect(page.getByRole('link', { name: 'Save temporary' })).toBeVisible();
+  await expect.poll(() => releaseTitle !== null).toBe(true);
+  releaseTitle?.();
+  await expect(page.getByRole('link', { name: 'Saved temporary title' })).toBeVisible();
+  expect(titleRequests).not.toContain('Do not retain');
+  expect(titleRequests).not.toContain('Discard on navigation');
+  expect(titleRequests.filter((message) => message === 'Save temporary')).toHaveLength(1);
   const firstConversationPosition = await page.locator('.chat-row').first().boundingBox();
   expect(firstConversationPosition?.y).toBe(emptyConversationPosition?.y);
 
@@ -545,7 +581,7 @@ test('OIDC login, persistent streamed chat, CSRF protection, and logout', async 
   await page.getByRole('button', { name: 'Open Sidebar' }).click();
   await page.waitForTimeout(220);
   const mobileChatActions = page.getByRole('button', {
-    name: 'More options for Save temporary'
+    name: 'More options for Saved temporary title'
   });
   await expect(mobileChatActions).toBeVisible();
   await mobileChatActions.click();
@@ -555,6 +591,7 @@ test('OIDC login, persistent streamed chat, CSRF protection, and logout', async 
   await page.locator('.nav-scrim').click({ position: { x: 650, y: 400 } });
   await page.setViewportSize({ width: 1280, height: 720 });
 
+  titleMode = 'success';
   await page.getByRole('button', { name: 'New Chat', exact: true }).click();
   await expect(page).toHaveURL('/');
   await expect(page.getByRole('button', { name: 'Temporary Chat' })).toBeVisible();
@@ -584,6 +621,9 @@ test('OIDC login, persistent streamed chat, CSRF protection, and logout', async 
   await expect(page.locator('.message.assistant script')).toHaveCount(0);
   await expect(page.locator('.message.streaming')).toHaveCount(0);
   await expect(composer).toBeEnabled();
+  await expect(page.getByRole('link', { name: 'Greeting chat' })).toBeVisible();
+  expect(titleModel).toBe('alternate-model');
+  expect(titleRequests.filter((message) => message === 'Say hello')).toHaveLength(1);
 
   const conversationUrl = page.url();
   await composer.fill('Follow up');
@@ -595,6 +635,7 @@ test('OIDC login, persistent streamed chat, CSRF protection, and logout', async 
     2
   );
   expect(page.url()).toBe(conversationUrl);
+  expect(titleRequests.filter((message) => message === 'Say hello')).toHaveLength(1);
 
   await page.reload();
   await expect(page.getByText('Say hello', { exact: true })).toBeVisible();
@@ -603,11 +644,49 @@ test('OIDC login, persistent streamed chat, CSRF protection, and logout', async 
     2
   );
 
-  await page.getByRole('link', { name: 'New chat', exact: true }).hover();
-  await page.getByRole('button', { name: 'More options for New chat' }).click();
+  await page.getByRole('link', { name: 'Greeting chat', exact: true }).hover();
+  await page.getByRole('button', { name: 'More options for Greeting chat' }).click();
   page.once('dialog', (dialog) => dialog.accept('Renamed chat'));
   await page.getByRole('button', { name: 'Rename', exact: true }).click();
   await expect(page.getByRole('link', { name: 'Renamed chat' })).toBeVisible();
+
+  titleMode = 'error';
+  await page.getByRole('button', { name: 'New Chat', exact: true }).click();
+  await expect(page).toHaveURL('/');
+  const fallbackComposer = page.getByRole('textbox', { name: 'Message' });
+  await fallbackComposer.fill('Keep fallback');
+  await fallbackComposer.press('Enter');
+  await expect(page.getByText('Hello world.')).toBeVisible();
+  await expect(fallbackComposer).toBeEnabled();
+  await expect
+    .poll(() => titleRequests.filter((message) => message === 'Keep fallback').length)
+    .toBe(1);
+  await expect(page.getByRole('link', { name: 'New chat', exact: true })).toBeVisible();
+  await page.getByRole('link', { name: 'New chat', exact: true }).hover();
+  await page.getByRole('button', { name: 'More options for New chat' }).click();
+  page.once('dialog', (dialog) => dialog.accept('Fallback chat'));
+  await page.getByRole('button', { name: 'Rename', exact: true }).click();
+  await expect(page.getByRole('link', { name: 'Fallback chat' })).toBeVisible();
+
+  titleMode = 'slow';
+  await page.getByRole('button', { name: 'New Chat', exact: true }).click();
+  await expect(page).toHaveURL('/');
+  const manualComposer = page.getByRole('textbox', { name: 'Message' });
+  await manualComposer.fill('Preserve my name');
+  await manualComposer.press('Enter');
+  await expect(page.getByText('Hello world.')).toBeVisible();
+  await expect
+    .poll(() => titleRequests.filter((message) => message === 'Preserve my name').length)
+    .toBe(1);
+  await page.getByRole('link', { name: 'New chat', exact: true }).hover();
+  await page.getByRole('button', { name: 'More options for New chat' }).click();
+  page.once('dialog', (dialog) => dialog.accept('Manual title'));
+  await page.getByRole('button', { name: 'Rename', exact: true }).click();
+  await expect(page.getByRole('link', { name: 'Manual title' })).toBeVisible();
+  releaseTitle?.();
+  await expect(page.getByRole('link', { name: 'Manual title' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Generated overwrite' })).toHaveCount(0);
+  titleMode = 'success';
 
   await page.evaluate(() => {
     return new Promise<void>((resolve, reject) => {
