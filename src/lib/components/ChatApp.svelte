@@ -154,6 +154,33 @@
     if (repository) chats = await repository.list(user.id);
   }
 
+  async function requestGeneratedTitle(
+    chatId: string,
+    expectedTitle: string,
+    firstMessage: string,
+    model: string
+  ): Promise<void> {
+    const targetRepository = repository;
+    if (!targetRepository) return;
+    try {
+      const response = await fetch('/api/title', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ model, message: firstMessage })
+      });
+      if (!response.ok) return;
+      const payload = (await response.json()) as { title?: unknown };
+      if (typeof payload.title !== 'string') return;
+      if (
+        await targetRepository.compareAndSetTitle(user.id, chatId, expectedTitle, payload.title)
+      ) {
+        await refreshChats();
+      }
+    } catch {
+      // Automatic naming is best-effort and must not affect the completed conversation.
+    }
+  }
+
   async function createChatRecord(): Promise<ChatSummary | null> {
     if (!repository || storageStatus !== 'ready') return null;
     try {
@@ -221,6 +248,7 @@
       messages = saved.messages;
       await refreshChats();
       replaceState(resolve(`/c/${chat.id}`), {});
+      if (firstPrompt) void requestGeneratedTitle(chat.id, title, firstPrompt, selectedModel);
     } catch {
       failure = 'Unable to save this temporary chat in local browser storage.';
     }
@@ -328,12 +356,16 @@
       role,
       content: messageContent
     }));
+    const firstUserMessage = messages.find((message) => message.role === 'user')?.content;
+    const shouldGenerateTitle =
+      !isTemporary && !messages.some((message) => message.role === 'assistant');
+    const generationModel = selectedModel;
 
     try {
       const response = await fetch('/api/generate', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ conversationId: chatId, model: selectedModel, messages: history }),
+        body: JSON.stringify({ conversationId: chatId, model: generationModel, messages: history }),
         signal: controller.signal
       });
       if (!response.ok || !response.body) {
@@ -393,6 +425,9 @@
           messages = [...messages, assistant];
           streaming = '';
           await refreshChats();
+          if (shouldGenerateTitle && firstUserMessage) {
+            void requestGeneratedTitle(chatId, 'New chat', firstUserMessage, generationModel);
+          }
         } catch {
           failStorage('Unable to save the response in local browser storage.');
         }

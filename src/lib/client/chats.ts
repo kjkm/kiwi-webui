@@ -171,6 +171,27 @@ export class LocalChatRepository {
     return true;
   }
 
+  async compareAndSetTitle(
+    userId: string,
+    chatId: string,
+    expectedTitle: string,
+    title: string
+  ): Promise<boolean> {
+    if (!validTitle(expectedTitle) || !validTitle(title)) return false;
+    const database = await this.database;
+    const transaction = database.transaction('chats', 'readwrite');
+    const chats = transaction.objectStore('chats');
+    const key = chatKey(userId, chatId);
+    const record = await chats.get(key);
+    if (!record || record.title !== expectedTitle.trim()) {
+      await transaction.done;
+      return false;
+    }
+    await chats.put({ ...record, title: title.trim(), updatedAt: Date.now() });
+    await transaction.done;
+    return true;
+  }
+
   async append(
     userId: string,
     chatId: string,
