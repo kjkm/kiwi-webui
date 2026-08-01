@@ -19,6 +19,10 @@ The system SHALL request one concise plain-text title from the selected provider
 - **WHEN** the system requests an automatic title
 - **THEN** it validates and uses the model selected for that conversation through the existing provider model allowlist
 
+#### Scenario: Stream the title completion
+- **WHEN** the system contacts the provider for an automatic title
+- **THEN** it uses the provider's required SSE completion contract without a generation-token cap and bounds the title content accumulated by Kiwi
+
 ### Requirement: Bounded and safe title output
 The system SHALL treat provider-generated title output as untrusted plain text, normalize it, and accept only a non-empty title within the existing title-length limit.
 

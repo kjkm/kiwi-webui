@@ -25,9 +25,9 @@ Model-backed title generation crosses the provider, authenticated API, client or
 
 ### Use a dedicated authenticated title endpoint
 
-Add a bounded JSON endpoint that accepts the selected model and first user message, resolves the model through the existing allowlist, performs one non-streaming OpenAI-compatible completion, and returns a normalized title. The provider request uses an internal title instruction and a low output-token limit. Client-supplied history, system prompts, or arbitrary provider parameters are not accepted.
+Add a bounded JSON endpoint that accepts the selected model and first user message, resolves the model through the existing allowlist, performs one OpenAI-compatible SSE completion, and returns a normalized title. The provider request uses an internal title instruction, reuses the provider's required streaming contract, and bounds accumulated output independently of generation tokens. Client-supplied history, system prompts, or arbitrary provider parameters are not accepted.
 
-This keeps title output separate from assistant streaming. Encoding a title into the main completion would complicate stream parsing and risk changing answer quality, while extending the existing SSE stream with a second provider task would delay stream closure and assistant persistence.
+This keeps title output separate from assistant streaming. Encoding a title into the main completion would complicate stream parsing and risk changing answer quality, while extending the existing assistant SSE response with a second provider task would delay stream closure and assistant persistence. A separate non-streaming provider request was rejected because Kiwi's provider contract guarantees SSE streaming only, and a low generation-token cap can exhaust reasoning models before they emit title content.
 
 ### Use the selected conversation model
 
@@ -61,7 +61,7 @@ Title generation is an enhancement rather than part of message delivery. Provide
 
 ## Risks / Trade-offs
 
-- **Additional provider cost per new saved chat** → Use one bounded completion with a low output-token limit and never retry automatically.
+- **Additional provider cost per new saved chat** → Use one completion, bound accumulated title output, and never retry automatically.
 - **Selected models may produce poor or verbose titles** → Apply strict normalization and length validation while preserving manual rename controls.
 - **Background completion can return after navigation or deletion** → Persist through the repository by user and chat ID and treat a failed conditional rename as a harmless stale result.
 - **A user can rename a chat while the title request is pending** → Compare-and-set against the original automatic title before writing.

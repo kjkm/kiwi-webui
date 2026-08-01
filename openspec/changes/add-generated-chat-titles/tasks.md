@@ -1,7 +1,7 @@
 ## 1. Title Generation Service
 
 - [x] 1.1 Add bounded title-request parsing and plain-text output normalization with the existing 120-character title limit
-- [x] 1.2 Add a low-token non-streaming OpenAI-compatible completion helper for the internal title instruction
+- [x] 1.2 Add a bounded OpenAI-compatible SSE completion helper for the internal title instruction without a generation-token cap
 - [x] 1.3 Add an authenticated `/api/title` endpoint that resolves the selected provider model and returns only a validated title
 - [x] 1.4 Keep title-provider failures content-free in server diagnostics and independent from primary generation concurrency
 
@@ -20,7 +20,7 @@
 
 ## 4. Regression Coverage
 
-- [x] 4.1 Add unit tests for title request validation, output normalization, non-streaming provider payloads, and provider response handling
+- [x] 4.1 Add unit tests for title request validation, output normalization, streaming provider payloads, bounded accumulation, and provider response handling
 - [x] 4.2 Add route tests for authentication, model allowlisting, valid titles, invalid output, and unavailable providers
 - [x] 4.3 Add Playwright coverage for automatic sidebar naming, non-blocking interaction, manual-rename preservation, saved temporary chats, and failure fallback
 

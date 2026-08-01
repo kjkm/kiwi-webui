@@ -22,7 +22,7 @@ New conversations remain labeled `New chat`, forcing users to rename them manual
 
 ## Impact
 
-- Adds an authenticated title-generation API and a bounded non-streaming provider request path.
+- Adds an authenticated title-generation API and bounded accumulation over the provider's existing streaming request path.
 - Updates client chat orchestration and the IndexedDB repository's rename semantics.
 - Adds route, provider, repository, and browser regression coverage.
 - Introduces one additional provider completion for each successfully started normal chat and each explicitly saved temporary chat; no SQLite schema or durable backend chat storage changes are required.
