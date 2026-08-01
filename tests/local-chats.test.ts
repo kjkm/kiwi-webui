@@ -83,6 +83,34 @@ describe('local chat repository', () => {
     expect(await database.count('messages')).toBe(0);
   });
 
+  it('conditionally applies generated titles without overwriting user changes', async () => {
+    const generated = await repository.create('alice');
+    expect(
+      await repository.compareAndSetTitle('alice', generated.id, 'New chat', 'Generated title')
+    ).toBe(true);
+    expect((await repository.get('alice', generated.id))?.title).toBe('Generated title');
+
+    const renamed = await repository.create('alice');
+    await repository.rename('alice', renamed.id, 'Manual title');
+    expect(await repository.compareAndSetTitle('alice', renamed.id, 'New chat', 'Late title')).toBe(
+      false
+    );
+    expect((await repository.get('alice', renamed.id))?.title).toBe('Manual title');
+
+    const deleted = await repository.create('alice');
+    await repository.delete('alice', deleted.id);
+    expect(await repository.compareAndSetTitle('alice', deleted.id, 'New chat', 'Late title')).toBe(
+      false
+    );
+    expect(
+      await repository.compareAndSetTitle('bob', renamed.id, 'Manual title', 'Stolen title')
+    ).toBe(false);
+    expect(await repository.compareAndSetTitle('alice', renamed.id, '', 'Title')).toBe(false);
+    expect(await repository.compareAndSetTitle('alice', renamed.id, 'Manual title', '   ')).toBe(
+      false
+    );
+  });
+
   it('renames owned chats and cascades message deletion', async () => {
     const chat = await repository.create('alice');
     await repository.append('alice', chat.id, 'user', 'hello');

@@ -1,7 +1,11 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { resetConfigForTests } from '../src/lib/server/config';
 import { getProviderModels, resetModelCacheForTests } from '../src/lib/server/llm/models';
-import { consumeOpenAiStream, requestCompletion } from '../src/lib/server/llm/openai';
+import {
+  consumeOpenAiStream,
+  requestCompletion,
+  requestTitleCompletion
+} from '../src/lib/server/llm/openai';
 
 function body(chunks: string[]): ReadableStream<Uint8Array> {
   const encoder = new TextEncoder();
@@ -46,6 +50,45 @@ describe('OpenAI-compatible model discovery', () => {
     }) as typeof fetch;
     await requestCompletion([], new AbortController().signal, 'other-model', fetcher);
     expect(requestBody.model).toBe('other-model');
+  });
+
+  it('requests a low-token non-streaming title with an internal instruction', async () => {
+    let requestBody: {
+      model?: string;
+      stream?: boolean;
+      max_tokens?: number;
+      messages?: Array<{ role?: string; content?: string }>;
+    } = {};
+    const fetcher = (async (_url: string | URL | Request, init?: RequestInit) => {
+      requestBody = JSON.parse(String(init?.body));
+      return new Response(
+        JSON.stringify({ choices: [{ message: { content: 'Generated title' } }] }),
+        { headers: { 'content-type': 'application/json' } }
+      );
+    }) as typeof fetch;
+
+    await expect(
+      requestTitleCompletion('First message', new AbortController().signal, 'other-model', fetcher)
+    ).resolves.toBe('Generated title');
+    expect(requestBody).toMatchObject({ model: 'other-model', stream: false, max_tokens: 32 });
+    expect(requestBody.messages).toEqual([
+      expect.objectContaining({ role: 'system' }),
+      { role: 'user', content: 'First message' }
+    ]);
+  });
+
+  it('rejects failed and malformed title responses', async () => {
+    const failed = (async () => new Response(null, { status: 503 })) as typeof fetch;
+    const malformed = (async () =>
+      new Response(JSON.stringify({ choices: [] }), {
+        headers: { 'content-type': 'application/json' }
+      })) as typeof fetch;
+    await expect(
+      requestTitleCompletion('Message', new AbortController().signal, 'model', failed)
+    ).rejects.toThrow(/503/);
+    await expect(
+      requestTitleCompletion('Message', new AbortController().signal, 'model', malformed)
+    ).rejects.toThrow(/invalid title response/);
   });
 });
 
