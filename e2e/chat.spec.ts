@@ -155,10 +155,10 @@ test.beforeAll(async () => {
         stream?: boolean;
         messages?: Array<{ role?: string; content?: string }>;
       };
-      if (payload.stream === false) {
+      if (payload.messages?.[0]?.role === 'system') {
         titleModel = payload.model ?? '';
         const firstMessage =
-          payload.messages?.find((message) => message.role === 'user')?.content ?? '';
+          payload.messages.find((message) => message.role === 'user')?.content ?? '';
         titleRequests.push(firstMessage);
         if (titleMode === 'slow') {
           await new Promise<void>((resolve) => {
@@ -172,9 +172,11 @@ test.beforeAll(async () => {
           'Say hello': 'Greeting chat',
           'Preserve my name': 'Generated overwrite'
         };
-        return json(response, 200, {
-          choices: [{ message: { content: titles[firstMessage] ?? 'Generated chat title' } }]
-        });
+        const title = titles[firstMessage] ?? 'Generated chat title';
+        response.writeHead(200, { 'content-type': 'text/event-stream' });
+        return response.end(
+          `data: ${JSON.stringify({ choices: [{ delta: { content: title } }] })}\n\ndata: [DONE]\n\n`
+        );
       }
       completionModel = payload.model ?? '';
       response.writeHead(200, { 'content-type': 'text/event-stream' });
