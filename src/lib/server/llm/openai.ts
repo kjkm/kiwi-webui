@@ -5,6 +5,9 @@ export interface ProviderMessage {
   content: string;
 }
 
+const TITLE_INSTRUCTION =
+  'Create a concise title for this chat from the user message. Return only the title as plain text, without quotation marks, Markdown, or commentary.';
+
 export async function requestCompletion(
   messages: ProviderMessage[],
   signal: AbortSignal,
@@ -28,6 +31,43 @@ export async function requestCompletion(
   if (!response.ok || !response.body)
     throw new Error(`Provider request failed (${response.status})`);
   return response;
+}
+
+export async function requestTitleCompletion(
+  message: string,
+  signal: AbortSignal,
+  model = getConfig().openai.model,
+  fetcher: typeof fetch = fetch
+): Promise<string> {
+  const config = getConfig();
+  const missing = missingProviderConfig(config);
+  if (missing.length) throw new Error(`Provider unavailable: missing ${missing.join(', ')}`);
+
+  const response = await fetcher(`${config.openai.baseUrl}/chat/completions`, {
+    method: 'POST',
+    headers: {
+      authorization: `Bearer ${config.openai.apiKey}`,
+      'content-type': 'application/json',
+      accept: 'application/json'
+    },
+    body: JSON.stringify({
+      model,
+      messages: [
+        { role: 'system', content: TITLE_INSTRUCTION },
+        { role: 'user', content: message }
+      ],
+      stream: false,
+      max_tokens: 32
+    }),
+    signal
+  });
+  if (!response.ok) throw new Error(`Provider request failed (${response.status})`);
+  const payload = (await response.json()) as {
+    choices?: Array<{ message?: { content?: unknown } }>;
+  };
+  const content = payload.choices?.[0]?.message?.content;
+  if (typeof content !== 'string') throw new Error('Provider returned an invalid title response');
+  return content;
 }
 
 export async function consumeOpenAiStream(
