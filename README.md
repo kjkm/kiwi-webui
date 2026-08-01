@@ -6,7 +6,7 @@ A minimal, OIDC-only chat interface for one OpenAI-compatible provider. It uses 
 
 - Authentik/OpenID Connect login with PKCE and just-in-time accounts
 - Hashed, server-side application sessions
-- Browser-local, user-partitioned chats with linear message history
+- Browser-local, user-partitioned chats with linear message history and generated titles
 - Disposable temporary chats that remain only in page memory unless explicitly saved
 - Searchable provider model selection and streaming OpenAI-compatible responses
 - Responsive interface with sanitized Markdown, code blocks, and KaTeX formulas
@@ -80,7 +80,9 @@ For an Ollama-backed provider, optionally set `OLLAMA_BASE_URL` to the native Ol
 
 Normal chat titles and user and assistant messages are stored in IndexedDB in the browser profile, partitioned by the authenticated OIDC user ID. They remain after logout for that same user, but they do not synchronize across browsers or devices and are permanently lost if site data is cleared. No backup, export, or import facility is currently provided.
 
-Temporary chats remain only in the current page's memory: they do not appear in history or write titles or messages to IndexedDB. Reloading, navigating away, starting another chat, or signing out permanently discards an unsaved temporary chat. The explicit save action converts its complete transcript into a normal IndexedDB chat.
+After the first assistant response completes, Kiwi asks the selected provider model for a concise title based on the first user message. This background request does not delay the response or keep the composer busy. A generated title is applied only while the chat is still named `New chat`, so it cannot overwrite a manual rename; provider, validation, or local-storage failures silently retain the existing title. The title is stored only in IndexedDB and is never persisted by the backend.
+
+Temporary chats remain only in the current page's memory: they do not appear in history or write titles or messages to IndexedDB. Reloading, navigating away, starting another chat, or signing out permanently discards an unsaved temporary chat. The explicit save action converts its complete transcript into a normal IndexedDB chat. Saved temporary chats initially use the first line of the first user message as a title, then request a generated title in the background; unsaved temporary chats make no title request.
 
 The backend receives bounded conversation history transiently for every completion, including temporary chats, and forwards it to the configured model provider. It does not persist chat content or include it in application logs. Temporary mode is therefore a local no-retention feature, not provider privacy or end-to-end encryption; browser extensions, same-origin scripts, developer tools, and the configured provider remain part of the trust boundary.
 
